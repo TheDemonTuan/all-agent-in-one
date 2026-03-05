@@ -531,7 +531,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
               fontWeight: 600,
               marginLeft: '4px',
             }}>
-              Tab để focus
+              Tab to focus
             </span>
           )}
         </div>

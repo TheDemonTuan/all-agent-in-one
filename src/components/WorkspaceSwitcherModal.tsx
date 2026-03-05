@@ -23,7 +23,7 @@ export const WorkspaceSwitcherModal: React.FC<WorkspaceSwitcherModalProps> = ({
         <div className="workspace-switcher-header">
           <span className="switcher-icon">📂</span>
           <h3>Switch Workspace</h3>
-          <span className="switcher-hint">Ctrl+Tab để chuyển, thả Ctrl để chọn</span>
+          <span className="switcher-hint">Ctrl+Tab to cycle, release Ctrl to select</span>
         </div>
 
         <div className="workspace-switcher-list">
@@ -52,13 +52,13 @@ export const WorkspaceSwitcherModal: React.FC<WorkspaceSwitcherModalProps> = ({
 
         <div className="workspace-switcher-footer">
           <span className="footer-hint">
-            <kbd>Ctrl+Tab</kbd> Tiếp theo
+            <kbd>Ctrl+Tab</kbd> Next
           </span>
           <span className="footer-hint">
-            <kbd>Ctrl+Shift+Tab</kbd> Lùi
+            <kbd>Ctrl+Shift+Tab</kbd> Previous
           </span>
           <span className="footer-hint">
-            <kbd>Ctrl+PgUp/PgDn</kbd> Nhanh
+            <kbd>Ctrl+PgUp/PgDn</kbd> Quick
           </span>
         </div>
       </div>
