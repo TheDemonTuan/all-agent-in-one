@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      
+      - name: Install Dependencies
+        run: bun install
+      
+      - name: Build Application
+        run: bun run electron:build
+      
+      - name: Create ZIP Archive
+        run: |
+          Compress-Archive -Path release\win-unpacked\* -DestinationPath TDT-Space-${{ github.ref_name }}-win.zip -Force
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: TDT-Space-${{ github.ref_name }}-win.zip
+          generate_release_notes: true
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
