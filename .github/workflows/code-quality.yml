@@ -1,0 +1,49 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+      
+      - name: Install Dependencies
+        run: bun install
+      
+      - name: Type Check
+        run: bun run build
+      
+      - name: Build Electron
+        run: bun run build:electron
+
+  package:
+    runs-on: windows-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+      
+      - name: Install Dependencies
+        run: bun install
+      
+      - name: Build Application
+        run: bun run electron:build
+      
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TDT-Space-build
+          path: |
+            dist/
+            dist-electron/
+            release/

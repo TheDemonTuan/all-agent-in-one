@@ -1,0 +1,19 @@
+name: Auto Update Badges
+
+on:
+  release:
+    types: [published]
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
+  workflow_dispatch:
+
+jobs:
+  update-badges:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Update README badges
+        run: |
+          echo "Badges will be auto-generated on release"
+          # Add any badge update logic here if needed

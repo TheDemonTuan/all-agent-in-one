@@ -1,0 +1,72 @@
+name: Auto Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 0.1.0)'
+        required: true
+        default: '0.1.0'
+      draft:
+        description: 'Create as draft release'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      
+      - name: Setup GitHub CLI
+        run: |
+          choco install gh -y
+          gh auth setup-git
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install Dependencies
+        run: bun install
+      
+      - name: Build Application
+        run: bun run electron:build
+      
+      - name: Create ZIP Archive
+        run: |
+          powershell -Command "Compress-Archive -Path release\win-unpacked\* -DestinationPath TDT-Space-v${{ github.event.inputs.version }}-win.zip -Force"
+      
+      - name: Configure Git
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+      
+      - name: Create and Push Tag
+        run: |
+          git tag -a v${{ github.event.inputs.version }} -m "Release v${{ github.event.inputs.version }}"
+          git push origin v${{ github.event.inputs.version }}
+      
+      - name: Create Release
+        run: |
+          $draftFlag = "${{ github.event.inputs.draft }}" -eq "true" ? "--draft" : ""
+          gh release create v${{ github.event.inputs.version }} `
+            --title "TDT Space v${{ github.event.inputs.version }}" `
+            --generate-notes `
+            $draftFlag `
+            TDT-Space-v${{ github.event.inputs.version }}-win.zip
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Upload Release Asset
+        if: github.event.inputs.draft != 'true'
+        run: |
+          Write-Host "Release published successfully!"
