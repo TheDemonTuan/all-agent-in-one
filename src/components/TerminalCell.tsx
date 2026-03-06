@@ -381,6 +381,8 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
         const nextWs = getNextWorkspace();
         if (nextWs) {
           setCurrentWorkspace(nextWs);
+          // Dispatch custom event to notify App.tsx to open workspace switcher modal
+          window.dispatchEvent(new CustomEvent('open-workspace-switcher'));
         }
         return false;
       }
@@ -391,6 +393,8 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
         const prevWs = getPreviousWorkspace();
         if (prevWs) {
           setCurrentWorkspace(prevWs);
+          // Dispatch custom event to notify App.tsx to open workspace switcher modal
+          window.dispatchEvent(new CustomEvent('open-workspace-switcher'));
         }
         return false;
       }

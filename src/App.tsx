@@ -39,6 +39,17 @@ function App() {
     loadWorkspaces();
   }, []);
 
+  // Listen for workspace switcher open event from TerminalCell
+  useEffect(() => {
+    const handleOpenWorkspaceSwitcher = () => {
+      console.log('[App] Received open-workspace-switcher event from TerminalCell');
+      setWorkspaceSwitcherOpen(true);
+    };
+
+    window.addEventListener('open-workspace-switcher', handleOpenWorkspaceSwitcher);
+    return () => window.removeEventListener('open-workspace-switcher', handleOpenWorkspaceSwitcher);
+  }, []);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
