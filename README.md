@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![GitHub Release](https://img.shields.io/github/v/release/TheDemonTuan/all-agent-in-one)
 ![Electron](https://img.shields.io/badge/Electron-34.5.8-47848F?logo=electron&logoColor=white)
 ![React](https://img.shields.io/badge/React-19.2.4-61DAFB?logo=react&logoColor=black)
@@ -335,7 +335,7 @@ See the [LICENSE](LICENSE) file for details.
 
 ## 🚀 What's Next?
 
-### Planned for v0.2.0
+### Planned for v1.1.0
 - [ ] Terminal pane resizing (drag to resize)
 - [ ] Custom color themes
 - [ ] Command palette with fuzzy search

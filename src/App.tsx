@@ -4,6 +4,7 @@ import { TerminalGrid } from './components/TerminalGrid';
 import { WorkspaceTabBar } from './components/WorkspaceTabBar';
 import { WorkspaceSwitcherModal } from './components/WorkspaceSwitcherModal';
 import { useWorkspaceStore } from './stores/workspaceStore';
+import { getAppVersion } from './utils/version';
 
 function App() {
   const theme = useWorkspaceStore((state) => state.theme);
@@ -23,6 +24,12 @@ function App() {
 
   // Workspace switcher modal state
   const [workspaceSwitcherOpen, setWorkspaceSwitcherOpen] = useState(false);
+  const [appVersion, setAppVersion] = useState<string>('');
+
+  // Load app version
+  useEffect(() => {
+    getAppVersion().then(setAppVersion);
+  }, []);
 
   // Load workspaces from electron-store on mount (only once)
   useEffect(() => {
@@ -251,7 +258,7 @@ function App() {
           justifyContent: 'space-between',
         }}
       >
-        <span>v0.3.0 - Hotkeys & Workspace Switcher</span>
+        <span>v{appVersion} - Multi-terminal Workspace</span>
         <div style={{ display: 'flex', gap: '16px' }}>
           <span>Ctrl+Tab: Switch Workspace</span>
           <span>Ctrl+PgUp/PgDn: Prev/Next Workspace</span>
