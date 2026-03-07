@@ -349,6 +349,8 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
       fontSize: 14,
       fontFamily: '"Cascadia Code", "Fira Code", Consolas, "Courier New", monospace',
       allowProposedApi: true,
+      // Configure scrollback buffer to prevent memory bloat (VAL-PERF-002)
+      scrollback: 1000, // Limit to 1000 lines for optimal memory usage
     });
 
     const fitAddon = new FitAddon();
@@ -556,30 +558,44 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
     return () => {
       console.log(`[TerminalCell ${terminal.id}] Cleaning up terminal`);
 
-      // Kill PTY process in main process before disposing UI
-      if (typeof window !== 'undefined' && (window as any).electronAPI) {
-        (window as any).electronAPI.terminalKill(terminal.id).catch((err: any) => {
-          console.warn(`[TerminalCell ${terminal.id}] Failed to kill terminal process:`, err);
-        });
-      }
-
+      // Clear any pending debounce timers first
       if (fitDebounceRef.current) {
         clearTimeout(fitDebounceRef.current);
+        fitDebounceRef.current = null;
       }
 
+      // Disconnect ResizeObserver before disposing terminal
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
       }
 
+      // Unsubscribe all IPC event listeners to prevent memory leaks (VAL-MEM-003)
       listenersRef.current.unsubscribeData?.();
       listenersRef.current.unsubscribeStarted?.();
       listenersRef.current.unsubscribeExit?.();
       listenersRef.current.unsubscribeError?.();
       listenersRef.current = {};
 
+      // Kill PTY process in main process BEFORE disposing UI terminal
+      // This ensures the process is terminated and won't send more data
+      if (typeof window !== 'undefined' && (window as any).electronAPI) {
+        (window as any).electronAPI.terminalKill(terminal.id).catch((err: any) => {
+          console.warn(`[TerminalCell ${terminal.id}] Failed to kill terminal process:`, err);
+        });
+      }
+
+      // Dispose xterm.js terminal and all addons (VAL-MEM-004)
+      // dispose() automatically handles:
+      // - terminal.onData handlers removal
+      // - terminal.onScroll handlers removal
+      // - All addons (FitAddon, WebLinksAddon, SearchAddon) disposal
+      // - Texture atlas clearing
+      // - WebGL context release (if WebGL addon is active)
       if (terminalRef.current) {
         try {
+          // Dispose addons explicitly first for clarity
+          // Note: terminal.dispose() will dispose all loaded addons automatically
           terminalRef.current.dispose();
         } catch (err: any) {
           console.error(`[TerminalCell ${terminal.id}] Error disposing terminal:`, err);
@@ -587,11 +603,12 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
         terminalRef.current = null;
       }
 
+      // Clear container
       if (containerRef.current) {
         containerRef.current.innerHTML = '';
       }
 
-      // Reset initialization flags
+      // Reset initialization flags to prevent stale references (VAL-MEM-002)
       hasInitializedRef.current = false;
       hasInitiallyFitRef.current = false;
       isInitialFitCompleteRef.current = false;

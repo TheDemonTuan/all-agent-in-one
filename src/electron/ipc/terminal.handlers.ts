@@ -8,6 +8,7 @@ import Store from 'electron-store';
 import * as pty from 'node-pty';
 import * as fs from 'fs';
 import * as path from 'path';
+import { spawnSync } from 'child_process';
 import { IPC_CHANNELS, DEFAULT_TERMINAL_COLS, DEFAULT_TERMINAL_ROWS, STORAGE_KEYS } from '../../config/constants';
 import { logger } from '../../lib/logger';
 import { 
@@ -72,6 +73,59 @@ const terminalWorkspaceMap = new Map<string, string>();
 
 // Prevent concurrent patch operations
 let isPatching = false;
+
+/**
+ * Kill PTY process and all child processes (Windows process tree killing - VAL-PERF-003)
+ * Uses taskkill /f /t on Windows to kill entire process tree
+ * Falls back to pty.kill() on Unix systems
+ */
+function killPtyProcess(ptyProcess: pty.IPty): boolean {
+  const pid = ptyProcess.pid;
+  
+  if (process.platform === 'win32') {
+    // Windows: Use taskkill to kill entire process tree including child processes
+    try {
+      const result = spawnSync('taskkill', ['/pid', pid.toString(), '/f', '/t'], {
+        stdio: 'pipe',
+        timeout: 5000, // 5 second timeout
+      });
+      
+      if (result.status === 0) {
+        log.debug('Successfully killed process tree with taskkill', { pid });
+        return true;
+      } else {
+        log.warn('taskkill failed, falling back to pty.kill()', { 
+          pid, 
+          stderr: result.stderr?.toString() 
+        });
+        // Fall back to pty.kill() if taskkill fails
+        ptyProcess.kill();
+        return true;
+      }
+    } catch (err: any) {
+      log.error('taskkill error, falling back to pty.kill()', { 
+        pid, 
+        error: err.message 
+      });
+      // Fall back to pty.kill() on error
+      try {
+        ptyProcess.kill();
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  } else {
+    // Unix: Use standard pty.kill()
+    try {
+      ptyProcess.kill();
+      return true;
+    } catch (err: any) {
+      log.error('Failed to kill Unix process', { pid, error: err.message });
+      return false;
+    }
+  }
+}
 
 /**
  * Check if auto-patch is needed and apply it
@@ -283,11 +337,17 @@ export function initializeTerminalHandlers(mainWindow: BrowserWindow | null, sto
     const term = terminalProcesses.get(id);
     if (term) {
       try {
-        term.ptyProcess.kill();
-        terminalProcesses.delete(id);
-        terminalWorkspaceMap.delete(id);
-        log.info('Terminal killed', { id });
-        return { success: true };
+        // Use Windows process tree killing (VAL-PERF-003)
+        const killed = killPtyProcess(term.ptyProcess);
+        if (killed) {
+          terminalProcesses.delete(id);
+          terminalWorkspaceMap.delete(id);
+          log.info('Terminal killed', { id });
+          return { success: true };
+        } else {
+          log.error('Failed to kill terminal process', { id });
+          return { success: false, error: 'Failed to kill process' };
+        }
       } catch (err) {
         log.error('Failed to kill terminal', { id, error: err });
         return { success: false, error: String(err) };
@@ -319,11 +379,16 @@ export function initializeTerminalHandlers(mainWindow: BrowserWindow | null, sto
       const termWorkspaceId = terminalWorkspaceMap.get(id);
       if (termWorkspaceId === workspaceId) {
         try {
-          term.ptyProcess.kill();
-          terminalProcesses.delete(id);
-          terminalWorkspaceMap.delete(id);
-          cleaned++;
-          log.info('Cleaned up terminal', { id, workspaceId });
+          // Use Windows process tree killing (VAL-PERF-003)
+          const killed = killPtyProcess(term.ptyProcess);
+          if (killed) {
+            terminalProcesses.delete(id);
+            terminalWorkspaceMap.delete(id);
+            cleaned++;
+            log.info('Cleaned up terminal', { id, workspaceId });
+          } else {
+            log.error('Failed to cleanup terminal', { id, workspaceId });
+          }
         } catch (err) {
           log.error('Failed to cleanup terminal', { id, error: err });
         }
@@ -464,14 +529,18 @@ export function cleanupAllTerminals(isDev: boolean) {
         log.info('Skipping dev terminal', { id, pid: currentPid });
         return;
       }
-      term.ptyProcess.kill();
-      killCount++;
+      // Use Windows process tree killing (VAL-PERF-003)
+      if (killPtyProcess(term.ptyProcess)) {
+        killCount++;
+      }
     });
   } else {
     // In production, kill all terminals
     terminalProcesses.forEach((term, id) => {
-      term.ptyProcess.kill();
-      killCount++;
+      // Use Windows process tree killing (VAL-PERF-003)
+      if (killPtyProcess(term.ptyProcess)) {
+        killCount++;
+      }
     });
   }
 
