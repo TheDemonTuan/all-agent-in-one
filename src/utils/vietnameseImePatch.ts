@@ -192,6 +192,82 @@ export function extractClaudeVersion(content: string): string | null {
 }
 
 /**
+ * Get current Claude Code version from file system
+ * Returns null if Claude Code is not found or version cannot be extracted
+ */
+export function getCurrentClaudeVersion(): string | null {
+  const claudePath = findClaudePath();
+  
+  if (!claudePath || !fs.existsSync(claudePath)) {
+    return null;
+  }
+  
+  try {
+    const content = fs.readFileSync(claudePath, 'latin1');
+    return extractClaudeVersion(content);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compare two semantic version strings
+ * Returns: -1 if v1 < v2, 0 if v1 === v2, 1 if v1 > v2
+ */
+export function compareVersions(v1: string, v2: string): number {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+  
+  const maxLength = Math.max(parts1.length, parts2.length);
+  
+  for (let i = 0; i < maxLength; i++) {
+    const num1 = parts1[i] || 0;
+    const num2 = parts2[i] || 0;
+    
+    if (num1 < num2) return -1;
+    if (num1 > num2) return 1;
+  }
+  
+  return 0;
+}
+
+/**
+ * Check if current Claude Code version differs from the patched version
+ * 
+ * @param currentVersion - Current Claude Code version (optional, will be auto-detected if not provided)
+ * @param patchedVersion - Previously patched version from store (optional, will use undefined check)
+ * @returns true if versions don't match (mismatch detected), false otherwise
+ * 
+ * Behavior:
+ * - Returns false if patchedVersion is null/undefined (never patched, no mismatch)
+ * - Returns false if Claude Code is not installed (no mismatch if not installed)
+ * - Returns false if currentVersion cannot be determined (conservative, assume no mismatch)
+ * - Returns true if currentVersion !== patchedVersion (version changed, needs repatch)
+ */
+export function isVersionMismatched(
+  currentVersion?: string | null,
+  patchedVersion?: string | null
+): boolean {
+  // No mismatch if never patched (patchedVersion is null/undefined)
+  if (!patchedVersion) {
+    return false;
+  }
+  
+  // Auto-detect current version if not provided
+  if (currentVersion === undefined) {
+    currentVersion = getCurrentClaudeVersion();
+  }
+  
+  // No mismatch if Claude Code is not installed or version cannot be determined
+  if (!currentVersion) {
+    return false;
+  }
+  
+  // Compare versions using semantic versioning
+  return compareVersions(currentVersion, patchedVersion) !== 0;
+}
+
+/**
  * Check if version is compatible
  */
 function isVersionCompatible(version: string | null): { compatible: boolean; message: string } {
