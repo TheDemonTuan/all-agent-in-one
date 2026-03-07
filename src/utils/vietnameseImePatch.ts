@@ -124,19 +124,46 @@ class PatchLogger {
     }
   }
   
+  logVersionCheck(current: string | null, patched: string | null | undefined): void {
+    this.debug(`Version check: current=${current || 'unknown'}, patched=${patched || 'not patched'}`);
+  }
+  
+  logVersionMismatch(oldVersion: string | null | undefined, newVersion: string | null): void {
+    this.info(`Version mismatch detected: old=${oldVersion || 'none'}, new=${newVersion || 'unknown'}`);
+  }
+  
+  logAutoRepatchStart(): void {
+    this.info('Starting auto-repatch process...');
+  }
+  
+  logAutoRepatchResult(success: boolean, message?: string): void {
+    if (success) {
+      this.info('Auto-repatch completed successfully');
+    } else {
+      this.warn(`Auto-repatch failed: ${message || 'unknown error'}`);
+    }
+  }
+  
   logPatchStart(filePath: string): void {
     this.info(`Starting patch for: ${filePath}`);
     this.debug(`File size: ${(fs.statSync(filePath).size / 1024).toFixed(2)} KB`);
   }
   
-  logPatchSuccess(stats: PatchStats): void {
+  logPatchSuccess(stats: PatchStats, version?: string): void {
     this.info(`✓ Patch applied successfully`);
     this.debug(`Size: ${stats.originalSize} → ${stats.patchedSize} bytes (${stats.sizeDiff > 0 ? '+' : ''}${stats.sizeDiff})`);
     this.debug(`Time: ${(stats.patchTime / 1000).toFixed(2)}s`);
+    if (version) {
+      this.debug(`Claude Code version: ${version}`);
+    }
   }
   
   logPatchFailure(error: string): void {
     this.error(`✗ Patch failed: ${error}`);
+  }
+  
+  logVersionUpdate(oldVersion: string | null | undefined, newVersion: string): void {
+    this.info(`patchedVersion updated: ${oldVersion || 'none'} → ${newVersion}`);
   }
 }
 

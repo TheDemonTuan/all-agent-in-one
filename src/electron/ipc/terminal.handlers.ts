@@ -13,7 +13,8 @@ import {
   isVietnameseImePatched, 
   extractClaudeVersion,
   getCurrentClaudeVersion,
-  isVersionMismatched 
+  isVersionMismatched,
+  findClaudePath 
 } from '../../utils/vietnameseImePatch';
 
 const log = logger.child('[IPC:Terminal]');
@@ -37,8 +38,9 @@ let isPatching = false;
  * Returns true if patch was applied, false otherwise
  */
 async function autoPatchIfNeeded(store: Store, mainWindow: BrowserWindow | null): Promise<boolean> {
+  // Prevent concurrent patch operations
   if (isPatching) {
-    log.debug('Patch already running, skipping');
+    log.debug('Patch already running, skipping concurrent patch attempt');
     return false;
   }
 
@@ -48,7 +50,10 @@ async function autoPatchIfNeeded(store: Store, mainWindow: BrowserWindow | null)
     
     // Skip if Vietnamese IME or auto-patch is disabled
     if (!vnSettings.enabled || !vnSettings.autoPatch) {
-      log.debug('Vietnamese IME or auto-patch disabled, skipping version check');
+      log.debug('Vietnamese IME or auto-patch disabled, skipping version check', { 
+        enabled: vnSettings.enabled, 
+        autoPatch: vnSettings.autoPatch 
+      });
       return false;
     }
 
@@ -56,23 +61,34 @@ async function autoPatchIfNeeded(store: Store, mainWindow: BrowserWindow | null)
     const currentVersion = getCurrentClaudeVersion();
     const patchedVersion = vnSettings.patchedVersion;
     
-    log.debug(`Version check: current=${currentVersion}, patched=${patchedVersion}`);
+    // Log version check result before spawning Claude terminal
+    log.debug('Version check result', { 
+      currentVersion: currentVersion || 'unknown',
+      patchedVersion: patchedVersion || 'not patched',
+      isPatched: !!patchedVersion
+    });
     
     // Check if version mismatch exists
-    if (!isVersionMismatched(currentVersion, patchedVersion)) {
-      log.debug('No version mismatch detected');
+    const hasMismatch = isVersionMismatched(currentVersion, patchedVersion);
+    
+    if (!hasMismatch) {
+      log.debug('No version mismatch detected, skipping auto-repatch', {
+        currentVersion: currentVersion || 'unknown',
+        patchedVersion: patchedVersion || 'not patched'
+      });
       return false;
     }
 
     // Version mismatch detected - auto-repatch
-    log.info('Version mismatch detected, auto-repatching Claude Code...');
-    log.info(`Current version: ${currentVersion}, Patched version: ${patchedVersion}`);
+    log.info('=== Auto-Repatch Triggered ===');
+    log.info('Version mismatch detected: old=' + (patchedVersion || 'none') + ', new=' + (currentVersion || 'unknown'));
+    log.info('Starting auto-repatch process...');
     
     try {
       const result = await applyVietnameseImePatch();
       
       if (result.success) {
-        log.info('Auto-repatch successful!');
+        log.info('Auto-repatch completed successfully!');
         
         // Update patchedVersion in store
         if (result.version) {
@@ -83,21 +99,36 @@ async function autoPatchIfNeeded(store: Store, mainWindow: BrowserWindow | null)
             lastPatchPath: result.patchedPath 
           };
           store.set(STORAGE_KEYS.VIETNAMESE_IME, updatedSettings);
-          log.info('Updated patchedVersion in store:', result.version);
+          log.info('patchedVersion storage update: ' + (patchedVersion || 'none') + ' → ' + result.version);
+          log.debug('Updated settings stored in electron-store', { 
+            newPatchedVersion: result.version,
+            lastPatchStatus: 'success',
+            lastPatchPath: result.patchedPath 
+          });
+        } else {
+          log.warn('Auto-repatch succeeded but version not extracted from result');
         }
         
         // Notify renderer
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(IPC_CHANNELS.VIETNAMESE_IME_PATCH_APPLIED, result);
+          log.debug('Sent vietnamese-ime-patch-applied event to renderer');
         }
         
         return true;
       } else {
-        log.warn('Auto-repatch failed:', result.message);
+        log.warn('Auto-repatch result: failed', { 
+          reason: result.message, 
+          alreadyPatched: result.alreadyPatched 
+        });
         return false;
       }
     } catch (err: any) {
-      log.error('Auto-repatch error:', err.message);
+      log.error('Auto-repatch error occurred', { 
+        error: err.message, 
+        code: err.code,
+        stack: err.stack 
+      });
       
       // Handle file locked errors gracefully
       if (err.code === 'EBUSY') {
