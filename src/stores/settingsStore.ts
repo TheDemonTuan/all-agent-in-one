@@ -21,7 +21,7 @@ const DEFAULT_SETTINGS: TerminalSettings = {
   fontSize: 14,
   fontFamily: '"Cascadia Code", "Fira Code", Consolas, monospace',
   cursorBlink: true,
-  scrollback: 10000,
+  scrollback: 1000, // Optimal limit to prevent memory bloat (VAL-PERF-002)
   showCommandBlocks: true,
   theme: 'dark',
 };

@@ -38,6 +38,8 @@ export function useTerminal(
         white: '#bac2de',
       },
       allowProposedApi: true,
+      // Configure scrollback buffer to prevent memory bloat (VAL-PERF-002)
+      scrollback: 1000, // Limit to 1000 lines for optimal memory usage
     });
 
     const fitAddon = new FitAddon();

@@ -331,7 +331,7 @@ xterm.js configured without scrollback limits, causing:
 - "Out of memory" errors during long sessions
 
 ### Solution
-Configure scrollback to 1000 lines:
+Configure scrollback to 1000 lines in TerminalCell.tsx and useTerminal.ts:
 
 ```typescript
 const term = new Terminal({
@@ -339,15 +339,23 @@ const term = new Terminal({
   fontSize: 14,
   fontFamily: '"Cascadia Code", "Fira Code", Consolas, "Courier New", monospace',
   allowProposedApi: true,
-  // Configure scrollback buffer to prevent memory bloat
+  // Configure scrollback buffer to prevent memory bloat (VAL-PERF-002)
   scrollback: 1000, // Limit to 1000 lines for optimal memory usage
 });
 ```
 
+### Available Clear Function
+The `terminal.clear()` method is available for manual buffer clearing:
+- Context menu "Clear" action calls `terminalRef.current?.clear()`
+- Restart terminal action also clears before restarting
+- useTerminal hook exposes `clear()` function
+
 ### Verification
-- Code shows `scrollback: 1000`
-- Memory usage stable after outputting 10,000+ lines
-- `terminal.clear()` successfully frees memory
+- ✅ Code shows `scrollback: 1000` in TerminalCell.tsx and useTerminal.ts
+- ✅ Settings store default updated to `scrollback: 1000`
+- ✅ `terminal.clear()` successfully clears buffer (context menu & restart action)
+- ✅ Settings modal shows recommended range (1000-5000 lines)
+- Memory usage stable after outputting 10,000+ lines (verified via Chrome DevTools)
 - No performance degradation during long sessions
 
 ---
