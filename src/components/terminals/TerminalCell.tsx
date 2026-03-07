@@ -422,10 +422,13 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
               lastDimensionsRef.current.cols !== cols ||
               lastDimensionsRef.current.rows !== rows) {
             lastDimensionsRef.current = { cols, rows };
+            console.log(`[TerminalCell ${terminal.id}] Resizing terminal to ${cols}x${rows} (debounced)`);
             (window as any).electronAPI.terminalResize(terminal.id, cols, rows);
+          } else {
+            console.log(`[TerminalCell ${terminal.id}] Resize skipped - dimensions unchanged at ${cols}x${rows}`);
           }
         }
-      }, 100);
+      }, 150); // 150ms debounce delay (VAL-PERF-001: 100-200ms range)
     });
     resizeObserverRef.current.observe(containerRef.current);
 
