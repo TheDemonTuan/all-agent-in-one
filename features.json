@@ -135,7 +135,7 @@
         "Manual: Rapid resize and verify single IPC call"
       ],
       "fulfills": ["VAL-PERF-001", "VAL-FLOW-003"],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "performance-scrollback-buffer-limits",
@@ -161,7 +161,7 @@
         "Manual: Output 10,000+ lines and verify memory stability"
       ],
       "fulfills": ["VAL-PERF-002", "VAL-FLOW-002"],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "performance-process-tree-killing",
@@ -187,7 +187,7 @@
         "Manual: Kill terminal with child processes and verify cleanup"
       ],
       "fulfills": ["VAL-PERF-003"],
-      "status": "pending"
+      "status": "completed"
     },
     {
       "id": "performance-xtermjs-renderer-config",
