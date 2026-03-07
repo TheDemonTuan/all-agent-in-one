@@ -477,7 +477,9 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
       term.write(`\x1b[36m${agentIcon} Starting ${terminal.agent.type}...\x1b[0m\r\n`);
     }
 
-    // Setup event listeners
+    // Setup event listeners (VAL-MEM-003)
+    console.log(`[TerminalCell ${terminal.id}] Subscribing to IPC events...`);
+    
     listenersRef.current.unsubscribeData = (window as any).electronAPI.onTerminalData(({ id, data }: { id: string; data: string }) => {
       if (id === terminal.id && terminalRef.current) {
         // Buffer data until initial fit is complete to prevent garbled output
@@ -493,6 +495,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
         }
       }
     });
+    console.log(`[TerminalCell ${terminal.id}] Subscribed to onTerminalData`);
 
     listenersRef.current.unsubscribeStarted = (window as any).electronAPI.onTerminalStarted(({ id }: { id: string }) => {
       if (id === terminal.id) {
@@ -501,6 +504,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
         terminalRef.current?.focus();
       }
     });
+    console.log(`[TerminalCell ${terminal.id}] Subscribed to onTerminalStarted`);
 
     listenersRef.current.unsubscribeExit = (window as any).electronAPI.onTerminalExit(({ id, code, signal }: { id: string; code: number | null; signal?: string }) => {
       if (id === terminal.id) {
@@ -513,6 +517,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
         updateTerminalStatus(terminal.id, 'stopped');
       }
     });
+    console.log(`[TerminalCell ${terminal.id}] Subscribed to onTerminalExit`);
 
     listenersRef.current.unsubscribeError = (window as any).electronAPI.onTerminalError(({ id, error }: { id: string; error: string }) => {
       if (id === terminal.id) {
@@ -573,19 +578,26 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
       }
 
       // Unsubscribe all IPC event listeners to prevent memory leaks (VAL-MEM-003)
+      console.log(`[TerminalCell ${terminal.id}] Unsubscribing IPC listeners...`);
       if (listenersRef.current.unsubscribeData) {
+        console.log(`[TerminalCell ${terminal.id}] Unsubscribing onTerminalData listener`);
         listenersRef.current.unsubscribeData();
       }
       if (listenersRef.current.unsubscribeStarted) {
+        console.log(`[TerminalCell ${terminal.id}] Unsubscribing onTerminalStarted listener`);
         listenersRef.current.unsubscribeStarted();
       }
       if (listenersRef.current.unsubscribeExit) {
+        console.log(`[TerminalCell ${terminal.id}] Unsubscribing onTerminalExit listener`);
         listenersRef.current.unsubscribeExit();
       }
       if (listenersRef.current.unsubscribeError) {
+        console.log(`[TerminalCell ${terminal.id}] Unsubscribing onTerminalError listener`);
         listenersRef.current.unsubscribeError();
       }
+      console.log(`[TerminalCell ${terminal.id}] IPC listeners unsubscribed, listenersRef.current:`, listenersRef.current);
       listenersRef.current = {};
+      console.log(`[TerminalCell ${terminal.id}] listenersRef.current cleared:`, listenersRef.current);
 
       // Kill PTY process in main process BEFORE disposing UI terminal
       // This ensures the process is terminated and won't send more data

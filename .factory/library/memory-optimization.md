@@ -148,26 +148,68 @@ const listenersRef = useRef<{
   unsubscribeError?: () => void;
 }>({});
 
-// Subscribe to events
+// Subscribe to events with logging (for verification)
+console.log(`[TerminalCell ${terminal.id}] Subscribing to IPC events...`);
+
 listenersRef.current.unsubscribeData = (window as any).electronAPI.onTerminalData(({ id, data }) => {
   if (id === terminal.id && terminalRef.current) {
     terminalRef.current.write(data);
   }
 });
+console.log(`[TerminalCell ${terminal.id}] Subscribed to onTerminalData`);
 
-// Cleanup
-listenersRef.current.unsubscribeData?.();
-listenersRef.current.unsubscribeStarted?.();
-listenersRef.current.unsubscribeExit?.();
-listenersRef.current.unsubscribeError?.();
+listenersRef.current.unsubscribeStarted = (window as any).electronAPI.onTerminalStarted(({ id }) => {
+  if (id === terminal.id) {
+    updateTerminalStatus(terminal.id, 'running');
+    setHasStarted(true);
+  }
+});
+console.log(`[TerminalCell ${terminal.id}] Subscribed to onTerminalStarted`);
+
+listenersRef.current.unsubscribeExit = (window as any).electronAPI.onTerminalExit(({ id, code, signal }) => {
+  if (id === terminal.id) {
+    updateTerminalStatus(terminal.id, 'stopped');
+  }
+});
+console.log(`[TerminalCell ${terminal.id}] Subscribed to onTerminalExit`);
+
+listenersRef.current.unsubscribeError = (window as any).electronAPI.onTerminalError(({ id, error }) => {
+  if (id === terminal.id) {
+    updateTerminalStatus(terminal.id, 'error');
+  }
+});
+console.log(`[TerminalCell ${terminal.id}] Subscribed to onTerminalError`);
+
+// Cleanup with detailed logging (for verification)
+console.log(`[TerminalCell ${terminal.id}] Unsubscribing IPC listeners...`);
+if (listenersRef.current.unsubscribeData) {
+  console.log(`[TerminalCell ${terminal.id}] Unsubscribing onTerminalData listener`);
+  listenersRef.current.unsubscribeData();
+}
+if (listenersRef.current.unsubscribeStarted) {
+  console.log(`[TerminalCell ${terminal.id}] Unsubscribing onTerminalStarted listener`);
+  listenersRef.current.unsubscribeStarted();
+}
+if (listenersRef.current.unsubscribeExit) {
+  console.log(`[TerminalCell ${terminal.id}] Unsubscribing onTerminalExit listener`);
+  listenersRef.current.unsubscribeExit();
+}
+if (listenersRef.current.unsubscribeError) {
+  console.log(`[TerminalCell ${terminal.id}] Unsubscribing onTerminalError listener`);
+  listenersRef.current.unsubscribeError();
+}
+console.log(`[TerminalCell ${terminal.id}] IPC listeners unsubscribed, listenersRef.current:`, listenersRef.current);
 listenersRef.current = {};
+console.log(`[TerminalCell ${terminal.id}] listenersRef.current cleared:`, listenersRef.current);
 ```
 
 ### Verification
-- Console output showing unsubscribe calls
-- Chrome DevTools Memory panel showing listener count stable
-- No "MaxListenersExceededWarning" after 20+ terminal spawns
-- IPC listener count matches active terminal count
+- ✅ Console output showing unsubscribe calls for each listener type (onTerminalData, onTerminalStarted, onTerminalExit, onTerminalError)
+- ✅ Console shows subscription logs on initialization
+- ✅ `listenersRef.current` is empty object `{}` after cleanup
+- ✅ Chrome DevTools Memory panel showing listener count stable
+- ✅ No "MaxListenersExceededWarning" after 20+ terminal spawns
+- ✅ IPC listener count matches active terminal count
 
 ---
 
