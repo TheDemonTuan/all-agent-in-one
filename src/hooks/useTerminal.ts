@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 
 export interface UseTerminalOptions {
@@ -44,9 +45,11 @@ export function useTerminal(
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
+    const webglAddon = new WebglAddon();
 
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
+    terminal.loadAddon(webglAddon);
 
     terminal.open(containerRef.current);
     fitAddon.fit();
@@ -69,6 +72,9 @@ export function useTerminal(
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
       }
+      // Dispose WebGL addon explicitly before terminal disposal (VAL-PERF-004)
+      webglAddon.dispose();
+      // Dispose terminal - this will also dispose all other addons
       terminal.dispose();
     };
   }, []);

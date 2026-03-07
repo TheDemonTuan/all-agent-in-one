@@ -111,7 +111,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, '../preload/preload.cjs'),
-      webgl: false,
+      webgl: true,
       experimentalFeatures: false,
       devTools: true,
     },

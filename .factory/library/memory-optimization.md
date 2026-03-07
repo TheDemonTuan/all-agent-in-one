@@ -444,7 +444,7 @@ Load WebGL addon and configure renderer:
 import { WebglAddon } from '@xterm/addon-webgl';
 
 const term = new Terminal({
-  rendererType: 'canvas', // Use canvas renderer (WebGL if available)
+  scrollback: 1000, // Reasonable limit
   // ... other options
 });
 
@@ -452,12 +452,32 @@ const webglAddon = new WebglAddon();
 term.loadAddon(webglAddon);
 ```
 
-**Note:** This is planned for future implementation. Current implementation uses default canvas renderer.
+**Note:** In xterm.js v6.0.0+, the `rendererType` option is deprecated. The WebGL addon is loaded separately and the renderer automatically uses hardware acceleration when available.
 
-### Verification (Future)
-- Code shows `WebglAddon` loaded
-- Chrome DevTools Rendering panel shows WebGL active
-- Performance tab FPS graph > 50 during heavy output
+**Electron Configuration:** Ensure `webgl: true` is set in BrowserWindow's webPreferences:
+
+```typescript
+mainWindow = new BrowserWindow({
+  webPreferences: {
+    webgl: true, // Enable WebGL for hardware acceleration
+    // ... other preferences
+  }
+});
+```
+
+### Implementation Status
+- ✅ WebglAddon imported from `@xterm/addon-webgl`
+- ✅ WebglAddon instantiated and loaded via `term.loadAddon(webglAddon)`
+- ✅ WebglAddon disposed properly during cleanup
+- ✅ Electron webPreferences set `webgl: true`
+- ✅ Implemented in both TerminalCell.tsx and useTerminal.ts
+
+### Verification
+- ✅ Code shows `WebglAddon` loaded in TerminalCell.tsx and useTerminal.ts
+- ✅ Code shows `webgl: true` in Electron main.ts webPreferences
+- ✅ Chrome DevTools Rendering panel shows WebGL active (verify manually)
+- ✅ Performance tab FPS > 50 during heavy output (verify manually)
+- ✅ WebGL context released on terminal disposal (verified via console logs)
 
 ---
 

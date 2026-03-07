@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
+import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { TerminalPane, AgentType } from '../../types/workspace';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
@@ -99,6 +100,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const webLinksAddonRef = useRef<WebLinksAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
+  const webglAddonRef = useRef<WebglAddon | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const hasInitializedRef = useRef(false);
   const hasInitiallyFitRef = useRef(false);
@@ -366,10 +368,12 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
     const searchAddon = new SearchAddon();
+    const webglAddon = new WebglAddon();
 
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
     term.loadAddon(searchAddon);
+    term.loadAddon(webglAddon);
     term.open(containerRef.current);
 
     // Delay initial fit to ensure container has proper dimensions
@@ -398,6 +402,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
     fitAddonRef.current = fitAddon;
     webLinksAddonRef.current = webLinksAddon;
     searchAddonRef.current = searchAddon;
+    webglAddonRef.current = webglAddon;
     hasInitializedRef.current = true;
 
     term.options.theme = theme === 'dark' ? DARK_THEME : LIGHT_THEME;
@@ -691,6 +696,16 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
           console.warn(`[TerminalCell ${terminal.id}] Error disposing SearchAddon:`, err);
         }
         searchAddonRef.current = null;
+      }
+
+      if (webglAddonRef.current) {
+        try {
+          console.log(`[TerminalCell ${terminal.id}] Disposing WebglAddon`);
+          webglAddonRef.current.dispose();
+        } catch (err: any) {
+          console.warn(`[TerminalCell ${terminal.id}] Error disposing WebglAddon:`, err);
+        }
+        webglAddonRef.current = null;
       }
 
       // Dispose the terminal instance - this handles:
