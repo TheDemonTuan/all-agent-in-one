@@ -18,6 +18,15 @@ const agentTypeInfo: { type: AgentType; label: string; description: string; icon
   { type: 'claude-code', label: 'Claude Code', description: "Anthropic's CLI agent", icon: '🤖', color: '#a6adc8' },
   { type: 'opencode', label: 'OpenCode', description: 'Open source coding agent', icon: '🔓', color: '#a6adc8' },
   { type: 'droid', label: 'Droid', description: 'Custom AI agent', icon: '🤖', color: '#a6adc8' },
+  { type: 'gemini-cli', label: 'Gemini CLI', description: "Google's AI agent", icon: '✨', color: '#89b4fa' },
+  { type: 'cursor', label: 'Cursor CLI', description: 'AI-powered coding', icon: '🎯', color: '#f38ba8' },
+  { type: 'codex', label: 'Codex CLI', description: "OpenAI's coding agent", icon: '🧠', color: '#a6e3a1' },
+  { type: 'oh-my-pi', label: 'Oh My Pi', description: 'Minimalist agent', icon: '🥧', color: '#fab387' },
+  { type: 'aider', label: 'Aider', description: 'Git-native AI pair', icon: '🚀', color: '#cba6f7' },
+  { type: 'goose', label: 'Goose', description: 'Extensible AI agent', icon: '🪿', color: '#94e2d5' },
+  { type: 'warp', label: 'Warp AI', description: 'Terminal with AI', icon: '⚡', color: '#f9e2af' },
+  { type: 'amp', label: 'Amp', description: 'Code quality agent', icon: '🔥', color: '#eba0ac' },
+  { type: 'kiro', label: 'Kiro', description: 'AWS coding agent', icon: '☁️', color: '#89dceb' },
 ];
 
 const emojis = ['💼', '🚀', '💻', '🔧', '⚡', '🎯', '📦', '🛠️', '📊', '🎨'];
@@ -30,13 +39,33 @@ const extractAgentAllocation = (
     claudeCode: 0,
     opencode: 0,
     droid: 0,
+    geminiCli: 0,
+    cursor: 0,
+    codex: 0,
+    ohMyPi: 0,
+    aider: 0,
+    goose: 0,
+    warp: 0,
+    amp: 0,
+    kiro: 0,
   };
 
   terminals.forEach(term => {
     if (term.agent) {
-      if (term.agent.type === 'claude-code') allocation.claudeCode++;
-      else if (term.agent.type === 'opencode') allocation.opencode++;
-      else if (term.agent.type === 'droid') allocation.droid++;
+      switch (term.agent.type) {
+        case 'claude-code': allocation.claudeCode++; break;
+        case 'opencode': allocation.opencode++; break;
+        case 'droid': allocation.droid++; break;
+        case 'gemini-cli': allocation.geminiCli++; break;
+        case 'cursor': allocation.cursor++; break;
+        case 'codex': allocation.codex++; break;
+        case 'oh-my-pi': allocation.ohMyPi++; break;
+        case 'aider': allocation.aider++; break;
+        case 'goose': allocation.goose++; break;
+        case 'warp': allocation.warp++; break;
+        case 'amp': allocation.amp++; break;
+        case 'kiro': allocation.kiro++; break;
+      }
     }
   });
 
@@ -51,19 +80,27 @@ const generateAgentAssignments = (
   const assignments: Record<string, AgentConfig> = {};
   let terminalIndex = 0;
 
-  // Allocate Claude Code first
-  for (let i = 0; i < allocation.claudeCode; i++) {
-    assignments[`terminal-${terminalIndex++}`] = { type: 'claude-code', enabled: true };
-  }
+  // Allocate agents in order of priority
+  const agentAllocations = [
+    { type: 'claude-code' as const, count: allocation.claudeCode },
+    { type: 'opencode' as const, count: allocation.opencode },
+    { type: 'droid' as const, count: allocation.droid },
+    { type: 'gemini-cli' as const, count: allocation.geminiCli },
+    { type: 'cursor' as const, count: allocation.cursor },
+    { type: 'codex' as const, count: allocation.codex },
+    { type: 'oh-my-pi' as const, count: allocation.ohMyPi },
+    { type: 'aider' as const, count: allocation.aider },
+    { type: 'goose' as const, count: allocation.goose },
+    { type: 'warp' as const, count: allocation.warp },
+    { type: 'amp' as const, count: allocation.amp },
+    { type: 'kiro' as const, count: allocation.kiro },
+  ];
 
-  // Allocate Opencode
-  for (let i = 0; i < allocation.opencode; i++) {
-    assignments[`terminal-${terminalIndex++}`] = { type: 'opencode', enabled: true };
-  }
-
-  // Allocate Droid
-  for (let i = 0; i < allocation.droid; i++) {
-    assignments[`terminal-${terminalIndex++}`] = { type: 'droid', enabled: true };
+  // Allocate each agent type
+  for (const agent of agentAllocations) {
+    for (let i = 0; i < agent.count; i++) {
+      assignments[`terminal-${terminalIndex++}`] = { type: agent.type, enabled: true };
+    }
   }
 
   // Rest are None
@@ -95,11 +132,23 @@ export const WorkspaceCreationModal: React.FC<WorkspaceCreationModalProps> = ({ 
     claudeCode: 0,
     opencode: 0,
     droid: 0,
+    geminiCli: 0,
+    cursor: 0,
+    codex: 0,
+    ohMyPi: 0,
+    aider: 0,
+    goose: 0,
+    warp: 0,
+    amp: 0,
+    kiro: 0,
   });
 
   // Derived state from template
   const totalTerminals = selectedTemplate ? selectedTemplate.columns * selectedTemplate.rows : 0;
-  const allocatedCount = agentAllocation.claudeCode + agentAllocation.opencode + agentAllocation.droid;
+  const allocatedCount = agentAllocation.claudeCode + agentAllocation.opencode + agentAllocation.droid + 
+                          agentAllocation.geminiCli + agentAllocation.cursor + agentAllocation.codex + 
+                          agentAllocation.ohMyPi + agentAllocation.aider + agentAllocation.goose + 
+                          agentAllocation.warp + agentAllocation.amp + agentAllocation.kiro;
   const noneCount = totalTerminals - allocatedCount;
 
   // Generate agentAssignments from allocation
@@ -150,6 +199,15 @@ export const WorkspaceCreationModal: React.FC<WorkspaceCreationModalProps> = ({ 
         claudeCode: 0,
         opencode: 0,
         droid: 0,
+        geminiCli: 0,
+        cursor: 0,
+        codex: 0,
+        ohMyPi: 0,
+        aider: 0,
+        goose: 0,
+        warp: 0,
+        amp: 0,
+        kiro: 0,
       });
     }
   }, [totalTerminals]);
@@ -213,21 +271,48 @@ useEffect(() => {
       claudeCode: 0,
       opencode: 0,
       droid: 0,
+      geminiCli: 0,
+      cursor: 0,
+      codex: 0,
+      ohMyPi: 0,
+      aider: 0,
+      goose: 0,
+      warp: 0,
+      amp: 0,
+      kiro: 0,
     });
   };
 
   const handleAutoDistribute = () => {
     if (totalTerminals === 0) return;
 
-    // Auto-fill by priority: Claude Code -> Opencode -> Droid
-    const third = Math.floor(totalTerminals / 3);
-    const remainder = totalTerminals % 3;
+    // Auto-fill by priority: distribute evenly among top agents
+    const numAgents = 12; // Total number of agent types
+    const base = Math.floor(totalTerminals / numAgents);
+    const remainder = totalTerminals % numAgents;
 
-    setAgentAllocation({
-      claudeCode: third + (remainder > 0 ? 1 : 0),
-      opencode: third + (remainder > 1 ? 1 : 0),
-      droid: third,
-    });
+    const allocation = {
+      claudeCode: base,
+      opencode: base,
+      droid: base,
+      geminiCli: base,
+      cursor: base,
+      codex: base,
+      ohMyPi: base,
+      aider: base,
+      goose: base,
+      warp: base,
+      amp: base,
+      kiro: base,
+    };
+
+    // Distribute remainder
+    const keys = Object.keys(allocation) as (keyof typeof allocation)[];
+    for (let i = 0; i < remainder; i++) {
+      allocation[keys[i]]++;
+    }
+
+    setAgentAllocation(allocation);
   };
 
   const handleCreateWorkspace = () => {
@@ -251,42 +336,34 @@ useEffect(() => {
       // Preserve agent allocation based on the slider values
       let terminalIndex = 0;
       
+      // Helper to allocate terminals for an agent type
+      const allocateAgent = (type: AgentType, count: number) => {
+        for (let i = 0; i < count && terminalIndex < totalNewTerminals; i++) {
+          newTerminals.push({
+            id: generateId(),
+            title: `Terminal ${terminalIndex + 1}`,
+            cwd: workingDir,
+            shell: getShell(),
+            status: 'stopped' as const,
+            agent: { type, enabled: true },
+          });
+          terminalIndex++;
+        }
+      };
+      
       // Allocate agents based on current allocation
-      for (let i = 0; i < agentAllocation.claudeCode && terminalIndex < totalNewTerminals; i++) {
-        newTerminals.push({
-          id: generateId(),
-          title: `Terminal ${terminalIndex + 1}`,
-          cwd: workingDir,
-          shell: getShell(),
-          status: 'stopped' as const,
-          agent: { type: 'claude-code' as const, enabled: true },
-        });
-        terminalIndex++;
-      }
-      
-      for (let i = 0; i < agentAllocation.opencode && terminalIndex < totalNewTerminals; i++) {
-        newTerminals.push({
-          id: generateId(),
-          title: `Terminal ${terminalIndex + 1}`,
-          cwd: workingDir,
-          shell: getShell(),
-          status: 'stopped' as const,
-          agent: { type: 'opencode' as const, enabled: true },
-        });
-        terminalIndex++;
-      }
-      
-      for (let i = 0; i < agentAllocation.droid && terminalIndex < totalNewTerminals; i++) {
-        newTerminals.push({
-          id: generateId(),
-          title: `Terminal ${terminalIndex + 1}`,
-          cwd: workingDir,
-          shell: getShell(),
-          status: 'stopped' as const,
-          agent: { type: 'droid' as const, enabled: true },
-        });
-        terminalIndex++;
-      }
+      allocateAgent('claude-code', agentAllocation.claudeCode);
+      allocateAgent('opencode', agentAllocation.opencode);
+      allocateAgent('droid', agentAllocation.droid);
+      allocateAgent('gemini-cli', agentAllocation.geminiCli);
+      allocateAgent('cursor', agentAllocation.cursor);
+      allocateAgent('codex', agentAllocation.codex);
+      allocateAgent('oh-my-pi', agentAllocation.ohMyPi);
+      allocateAgent('aider', agentAllocation.aider);
+      allocateAgent('goose', agentAllocation.goose);
+      allocateAgent('warp', agentAllocation.warp);
+      allocateAgent('amp', agentAllocation.amp);
+      allocateAgent('kiro', agentAllocation.kiro);
       
       // Fill remaining with none
       while (terminalIndex < totalNewTerminals) {
@@ -337,13 +414,25 @@ useEffect(() => {
       claudeCode: 0,
       opencode: 0,
       droid: 0,
+      geminiCli: 0,
+      cursor: 0,
+      codex: 0,
+      ohMyPi: 0,
+      aider: 0,
+      goose: 0,
+      warp: 0,
+      amp: 0,
+      kiro: 0,
     });
   };
 
   // Calculate max values for each slider
-  const maxClaudeCode = totalTerminals - (agentAllocation.opencode + agentAllocation.droid);
-  const maxOpencode = totalTerminals - (agentAllocation.claudeCode + agentAllocation.droid);
-  const maxDroid = totalTerminals - (agentAllocation.claudeCode + agentAllocation.opencode);
+  const getMaxForAgent = (excludeKey: keyof AgentAllocation) => {
+    const sumOthers = Object.entries(agentAllocation)
+      .filter(([key]) => key !== excludeKey)
+      .reduce((sum, [, value]) => sum + value, 0);
+    return totalTerminals - sumOthers;
+  };
 
   if (!isOpen) return null;
 
@@ -455,24 +544,35 @@ useEffect(() => {
 
             {/* Agent Sliders */}
             <div style={styles.slidersContainer}>
-              {agentTypeInfo.map((agent) => (
-                <AgentAllocationSlider
-                  key={agent.type}
-                  label={agent.label}
-                  icon={agent.icon}
-                  value={agentAllocation[agent.type === 'claude-code' ? 'claudeCode' : agent.type === 'opencode' ? 'opencode' : 'droid']}
-                  maxValue={
-                    agent.type === 'claude-code' ? maxClaudeCode :
-                    agent.type === 'opencode' ? maxOpencode : maxDroid
-                  }
-                  onChange={(value) => setAgentAllocation(prev => ({
-                    ...prev,
-                    [agent.type === 'claude-code' ? 'claudeCode' : agent.type === 'opencode' ? 'opencode' : 'droid']: value,
-                  }))}
-                  color={agent.color}
-                  description={agent.description}
-                />
-              ))}
+              {agentTypeInfo.map((agent) => {
+                const allocationKey = agent.type === 'claude-code' ? 'claudeCode' : 
+                                     agent.type === 'opencode' ? 'opencode' :
+                                     agent.type === 'gemini-cli' ? 'geminiCli' :
+                                     agent.type === 'cursor' ? 'cursor' :
+                                     agent.type === 'codex' ? 'codex' :
+                                     agent.type === 'oh-my-pi' ? 'ohMyPi' :
+                                     agent.type === 'aider' ? 'aider' :
+                                     agent.type === 'goose' ? 'goose' :
+                                     agent.type === 'warp' ? 'warp' :
+                                     agent.type === 'amp' ? 'amp' :
+                                     agent.type === 'kiro' ? 'kiro' : 'droid';
+                
+                return (
+                  <AgentAllocationSlider
+                    key={agent.type}
+                    label={agent.label}
+                    icon={agent.icon}
+                    value={agentAllocation[allocationKey]}
+                    maxValue={getMaxForAgent(allocationKey)}
+                    onChange={(value) => setAgentAllocation(prev => ({
+                      ...prev,
+                      [allocationKey]: value
+                    }))}
+                    color={agent.color}
+                    description={agent.description}
+                  />
+                );
+              })}
             </div>
 
             {/* Action Buttons */}

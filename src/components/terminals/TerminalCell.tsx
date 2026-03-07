@@ -63,6 +63,15 @@ const AGENT_ICONS: Record<AgentType, string> = {
   'claude-code': '🤖',
   'opencode': '📦',
   'droid': '⚡',
+  'gemini-cli': '✨',
+  'cursor': '🎯',
+  'codex': '🧠',
+  'oh-my-pi': '🥧',
+  'aider': '🚀',
+  'goose': '🪿',
+  'warp': '⚡',
+  'amp': '🔥',
+  'kiro': '☁️',
   'none': '',
 };
 

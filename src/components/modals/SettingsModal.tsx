@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AgentInstallGuide } from '../agents/AgentInstallGuide';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -48,6 +49,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [patchStatus, setPatchStatus] = useState<any>(null);
   const [isPatching, setIsPatching] = useState(false);
   const [patchMessage, setPatchMessage] = useState<string | null>(null);
+  const [isAgentGuideOpen, setIsAgentGuideOpen] = useState(false);
 
   // Load Vietnamese IME settings on mount
   useEffect(() => {
@@ -121,7 +123,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         {/* Header */}
         <div style={styles.header}>
           <h2 style={styles.title}>Settings</h2>
-          <button onClick={onClose} style={styles.closeButton}>×</button>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button 
+              onClick={() => setIsAgentGuideOpen(true)} 
+              style={{...styles.guideButton, marginRight: '8px'}}
+              title="View AI Agents Installation Guide"
+            >
+              📦 Agents Guide
+            </button>
+            <button onClick={onClose} style={styles.closeButton}>×</button>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -261,6 +272,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             <button onClick={handleSave} style={styles.saveButton}>💾 Save</button>
           </div>
         </div>
+
+        {/* Agent Install Guide Modal */}
+        <AgentInstallGuide isOpen={isAgentGuideOpen} onClose={() => setIsAgentGuideOpen(false)} />
       </div>
     </div>
   );
@@ -310,6 +324,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '24px',
     cursor: 'pointer',
     padding: '0 8px',
+  },
+  guideButton: {
+    background: '#45475a',
+    border: 'none',
+    color: '#cdd6f4',
+    fontSize: '13px',
+    fontWeight: 500,
+    padding: '6px 12px',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
   },
   tabs: {
     display: 'flex',

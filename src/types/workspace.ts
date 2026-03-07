@@ -1,4 +1,17 @@
-export type AgentType = 'opencode' | 'claude-code' | 'droid' | 'none';
+export type AgentType = 
+  | 'claude-code'
+  | 'opencode'
+  | 'droid'
+  | 'gemini-cli'
+  | 'cursor'
+  | 'codex'
+  | 'oh-my-pi'
+  | 'aider'
+  | 'goose'
+  | 'warp'
+  | 'amp'
+  | 'kiro'
+  | 'none';
 
 export interface AgentConfig {
   type: AgentType;
@@ -12,6 +25,15 @@ export interface AgentAllocation {
   claudeCode: number;  // Number of terminals assigned to claude-code
   opencode: number;    // Number of terminals assigned to opencode
   droid: number;       // Number of terminals assigned to droid
+  geminiCli: number;   // Number of terminals assigned to gemini-cli
+  cursor: number;      // Number of terminals assigned to cursor
+  codex: number;       // Number of terminals assigned to codex
+  ohMyPi: number;      // Number of terminals assigned to oh-my-pi
+  aider: number;       // Number of terminals assigned to aider
+  goose: number;       // Number of terminals assigned to goose
+  warp: number;        // Number of terminals assigned to warp
+  amp: number;         // Number of terminals assigned to amp
+  kiro: number;        // Number of terminals assigned to kiro
 }
 
 // Template types for workspace layouts

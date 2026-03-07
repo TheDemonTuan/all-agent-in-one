@@ -295,6 +295,15 @@ export function initializeTerminalHandlers(mainWindow: BrowserWindow | null, sto
         'claude-code': 'claude',
         'opencode': 'opencode',
         'droid': 'droid',
+        'gemini-cli': 'gemini',
+        'cursor': 'cursor-agent',
+        'codex': 'codex',
+        'oh-my-pi': 'pi',
+        'aider': 'aider',
+        'goose': 'goose',
+        'warp': 'warp',
+        'amp': 'amp',
+        'kiro': 'kiro',
       };
 
       const agentCmd = agentConfig.command || agentCommands[agentConfig.type];
