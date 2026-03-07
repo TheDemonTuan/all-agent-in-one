@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { TitleBar, TerminalGrid, WorkspaceTabBar, WorkspaceSwitcherModal, SettingsModal } from './components';
+import { TitleBar, TerminalGrid, WorkspaceTabBar, WorkspaceSwitcherModal, SettingsModal, WorkspaceCreationModal } from './components';
 import { useWorkspaceStore } from './stores';
 import { getAppVersion } from './utils/version';
 import { useWorkspaceNavigation } from './hooks';
@@ -17,6 +17,7 @@ function App() {
   const workspace = useWorkspaceStore((state) => state.currentWorkspace);
   const loadWorkspaces = useWorkspaceStore((state) => state.loadWorkspaces);
   const setWorkspaceModalOpen = useWorkspaceStore((state) => state.setWorkspaceModalOpen);
+  const editingWorkspace = useWorkspaceStore((state) => state.editingWorkspace);
   const setCurrentWorkspace = useWorkspaceStore((state) => state.setCurrentWorkspace);
   const setActiveTerminal = useWorkspaceStore((state) => state.setActiveTerminal);
   const getNextTerminal = useWorkspaceStore((state) => state.getNextTerminal);
@@ -300,6 +301,17 @@ function App() {
         }}
         onSelectWorkspace={handleSelectWorkspace}
       />
+
+      {useWorkspaceStore(state => state.isWorkspaceModalOpen) && (
+        <WorkspaceCreationModal
+          isOpen={useWorkspaceStore.getState().isWorkspaceModalOpen}
+          onClose={() => {
+            console.log('[App] WorkspaceCreationModal onClose called');
+            setWorkspaceModalOpen(false);
+          }}
+          editingWorkspace={editingWorkspace}
+        />
+      )}
 
       <SettingsModal
         isOpen={settingsModalOpen}

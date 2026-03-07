@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="ampGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#eba0ac"/>
+      <stop offset="100%" style="stop-color:#f38ba8"/>
+    </linearGradient>
+  </defs>
+  <rect x="20" y="20" width="24" height="24" rx="4" fill="url(#ampGrad)" opacity="0.1"/>
+  <path d="M28 36 L32 24 L36 36 Z" fill="url(#ampGrad)"/>
+  <path d="M32 24 L34 28 L36 26" stroke="url(#ampGrad)" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <circle cx="48" cy="48" r="4" fill="url(#ampGrad)"/>
+  <path d="M32 36 Q36 40 40 36" stroke="url(#ampGrad)" stroke-width="2" stroke-linecap="round" fill="none"/>
+</svg>

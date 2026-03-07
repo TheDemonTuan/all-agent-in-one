@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="ohMyPiGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#fab387"/>
+      <stop offset="100%" style="stop-color:#f9e2af"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="28" fill="url(#ohMyPiGrad)" opacity="0.1"/>
+  <path d="M32 20 A12 12 0 0 1 44 32 A12 12 0 0 1 32 44 A12 12 0 0 1 20 32 A12 12 0 0 1 32 20 Z" fill="url(#ohMyPiGrad)"/>
+  <circle cx="32" cy="32" r="8" fill="white" opacity="0.9"/>
+  <path d="M28 32 Q32 36 36 32" stroke="#fab387" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <circle cx="28" cy="30" r="1.5" fill="#fab387"/>
+  <circle cx="36" cy="30" r="1.5" fill="#fab387"/>
+</svg>

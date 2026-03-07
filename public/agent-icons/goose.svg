@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="gooseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#94e2d5"/>
+      <stop offset="100%" style="stop-color:#a6e3a1"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="36" rx="24" ry="18" fill="url(#gooseGrad)" opacity="0.1"/>
+  <ellipse cx="32" cy="36" rx="20" ry="14" stroke="url(#gooseGrad)" stroke-width="2.5" fill="none"/>
+  <circle cx="32" cy="28" r="6" fill="url(#gooseGrad)"/>
+  <ellipse cx="26" cy="26" rx="2" ry="3" fill="white" opacity="0.8"/>
+  <path d="M28 32 Q32 36 36 32" stroke="url(#gooseGrad)" stroke-width="2" stroke-linecap="round" fill="none"/>
+</svg>

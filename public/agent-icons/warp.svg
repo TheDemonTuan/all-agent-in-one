@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="warpGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f9e2af"/>
+      <stop offset="100%" style="stop-color:#fab387"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="28" fill="url(#warpGrad)" opacity="0.1"/>
+  <path d="M24 40 L32 20 L40 40 L32 32 Z" fill="url(#warpGrad)"/>
+  <path d="M28 36 Q32 28 36 36" stroke="url(#warpGrad)" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <circle cx="32" cy="18" r="3" fill="url(#warpGrad)"/>
+</svg>

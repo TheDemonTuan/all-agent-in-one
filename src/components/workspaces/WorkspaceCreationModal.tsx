@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
 import { useTemplateStore } from '../../stores/templateStore';
 import { AgentConfig, AgentType, AgentAllocation, Template, WorkspaceLayout } from '../../types/workspace';
-import { AgentAllocationSlider } from '../agents/AgentAllocationSlider';
-import { TemplateSelector } from '../agents/TemplateSelector';
+import { agentTypeInfo, agentAllocationKeys } from '../../types/workspace.agents';
+import { TemplateCard } from './TemplateCard';
+import { AgentItem } from './AgentItem';
+import './WorkspaceCreationModal.css';
 
-// Import generateId from workspaceStore to avoid duplication
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
 interface WorkspaceCreationModalProps {
@@ -14,73 +15,46 @@ interface WorkspaceCreationModalProps {
   editingWorkspace?: WorkspaceLayout | null;
 }
 
-const agentTypeInfo: { type: AgentType; label: string; description: string; icon: string; color: string }[] = [
-  { type: 'claude-code', label: 'Claude Code', description: "Anthropic's CLI agent", icon: '🤖', color: '#a6adc8' },
-  { type: 'opencode', label: 'OpenCode', description: 'Open source coding agent', icon: '🔓', color: '#a6adc8' },
-  { type: 'droid', label: 'Droid', description: 'Custom AI agent', icon: '🤖', color: '#a6adc8' },
-  { type: 'gemini-cli', label: 'Gemini CLI', description: "Google's AI agent", icon: '✨', color: '#89b4fa' },
-  { type: 'cursor', label: 'Cursor CLI', description: 'AI-powered coding', icon: '🎯', color: '#f38ba8' },
-  { type: 'codex', label: 'Codex CLI', description: "OpenAI's coding agent", icon: '🧠', color: '#a6e3a1' },
-  { type: 'oh-my-pi', label: 'Oh My Pi', description: 'Minimalist agent', icon: '🥧', color: '#fab387' },
-  { type: 'aider', label: 'Aider', description: 'Git-native AI pair', icon: '🚀', color: '#cba6f7' },
-  { type: 'goose', label: 'Goose', description: 'Extensible AI agent', icon: '🪿', color: '#94e2d5' },
-  { type: 'warp', label: 'Warp AI', description: 'Terminal with AI', icon: '⚡', color: '#f9e2af' },
-  { type: 'amp', label: 'Amp', description: 'Code quality agent', icon: '🔥', color: '#eba0ac' },
-  { type: 'kiro', label: 'Kiro', description: 'AWS coding agent', icon: '☁️', color: '#89dceb' },
+type Step = 'template' | 'info' | 'directory' | 'agents';
+
+const steps: Step[] = ['template', 'info', 'directory', 'agents'];
+
+interface StepInfo {
+  id: Step;
+  title: string;
+  subtitle: string;
+  icon: string;
+}
+
+const stepInfo: StepInfo[] = [
+  { id: 'template', title: 'Template', subtitle: 'Choose layout', icon: '📐' },
+  { id: 'info', title: 'Basic Info', subtitle: 'Name & icon', icon: '📝' },
+  { id: 'directory', title: 'Directory', subtitle: 'Working folder', icon: '📁' },
+  { id: 'agents', title: 'AI Agents', subtitle: 'Configure agents', icon: '🤖' },
 ];
 
-const emojis = ['💼', '🚀', '💻', '🔧', '⚡', '🎯', '📦', '🛠️', '📊', '🎨'];
+const emojis = ['💼', '🚀', '💻', '🔧', '⚡', '🎯', '📦', '🛠️', '📊', '🎨', '🌟', '🎮', '📱', '🖥️', '☁️'];
 
-// Helper function to extract agent allocation from existing workspace
-const extractAgentAllocation = (
-  terminals: WorkspaceLayout['terminals']
-): AgentAllocation => {
+const extractAgentAllocation = (terminals: WorkspaceLayout['terminals']): AgentAllocation => {
   const allocation: AgentAllocation = {
-    claudeCode: 0,
-    opencode: 0,
-    droid: 0,
-    geminiCli: 0,
-    cursor: 0,
-    codex: 0,
-    ohMyPi: 0,
-    aider: 0,
-    goose: 0,
-    warp: 0,
-    amp: 0,
-    kiro: 0,
+    claudeCode: 0, opencode: 0, droid: 0, geminiCli: 0, cursor: 0, codex: 0,
+    ohMyPi: 0, aider: 0, goose: 0, warp: 0, amp: 0, kiro: 0,
   };
 
   terminals.forEach(term => {
-    if (term.agent) {
-      switch (term.agent.type) {
-        case 'claude-code': allocation.claudeCode++; break;
-        case 'opencode': allocation.opencode++; break;
-        case 'droid': allocation.droid++; break;
-        case 'gemini-cli': allocation.geminiCli++; break;
-        case 'cursor': allocation.cursor++; break;
-        case 'codex': allocation.codex++; break;
-        case 'oh-my-pi': allocation.ohMyPi++; break;
-        case 'aider': allocation.aider++; break;
-        case 'goose': allocation.goose++; break;
-        case 'warp': allocation.warp++; break;
-        case 'amp': allocation.amp++; break;
-        case 'kiro': allocation.kiro++; break;
-      }
+    if (term.agent && term.agent.type !== 'none') {
+      const key = agentAllocationKeys[term.agent.type];
+      if (key) allocation[key]++;
     }
   });
 
   return allocation;
 };
 
-// Helper function to generate agent assignments from allocation
-const generateAgentAssignments = (
-  allocation: AgentAllocation,
-  total: number
-): Record<string, AgentConfig> => {
+const generateAgentAssignments = (allocation: AgentAllocation, total: number): Record<string, AgentConfig> => {
   const assignments: Record<string, AgentConfig> = {};
   let terminalIndex = 0;
 
-  // Allocate agents in order of priority
   const agentAllocations = [
     { type: 'claude-code' as const, count: allocation.claudeCode },
     { type: 'opencode' as const, count: allocation.opencode },
@@ -96,14 +70,12 @@ const generateAgentAssignments = (
     { type: 'kiro' as const, count: allocation.kiro },
   ];
 
-  // Allocate each agent type
   for (const agent of agentAllocations) {
-    for (let i = 0; i < agent.count; i++) {
+    for (let i = 0; i < agent.count && terminalIndex < total; i++) {
       assignments[`terminal-${terminalIndex++}`] = { type: agent.type, enabled: true };
     }
   }
 
-  // Rest are None
   while (terminalIndex < total) {
     assignments[`terminal-${terminalIndex++}`] = { type: 'none', enabled: false };
   }
@@ -111,142 +83,104 @@ const generateAgentAssignments = (
   return assignments;
 };
 
-export const WorkspaceCreationModal: React.FC<WorkspaceCreationModalProps> = ({ isOpen, onClose }) => {
-  const { addWorkspace, setCurrentWorkspace, updateWorkspace, editingWorkspace } = useWorkspaceStore();
-  const { loadTemplates } = useTemplateStore();
+export const WorkspaceCreationModal: React.FC<WorkspaceCreationModalProps> = ({
+  isOpen,
+  onClose,
+  editingWorkspace,
+}) => {
+  const { addWorkspace, setCurrentWorkspace, updateWorkspace } = useWorkspaceStore();
+  const { loadTemplates, getTemplate } = useTemplateStore();
 
   const isEditMode = !!editingWorkspace;
+  const [currentStep, setCurrentStep] = useState<Step>('template');
 
-  // Step 1: Template Selection
+  // Form state
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
-
-  // Step 2: Basic Info
   const [workspaceName, setWorkspaceName] = useState('My Workspace');
   const [selectedIcon, setSelectedIcon] = useState(emojis[0]);
-
-  // Step 3: Working Directory
   const [workingDir, setWorkingDir] = useState('./');
-
-  // Step 4: Agent Allocation
+  const [commandInput, setCommandInput] = useState('');
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const commandInputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
   const [agentAllocation, setAgentAllocation] = useState<AgentAllocation>({
-    claudeCode: 0,
-    opencode: 0,
-    droid: 0,
-    geminiCli: 0,
-    cursor: 0,
-    codex: 0,
-    ohMyPi: 0,
-    aider: 0,
-    goose: 0,
-    warp: 0,
-    amp: 0,
-    kiro: 0,
+    claudeCode: 0, opencode: 0, droid: 0, geminiCli: 0, cursor: 0, codex: 0,
+    ohMyPi: 0, aider: 0, goose: 0, warp: 0, amp: 0, kiro: 0,
   });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [iconSearchQuery, setIconSearchQuery] = useState('');
+  const [draggedAgent, setDraggedAgent] = useState<AgentType | null>(null);
 
-  // Derived state from template
+  const stepRef = useRef<HTMLDivElement>(null);
+
+  // Early return if not open - prevents rendering when closed
+  if (!isOpen) return null;
+
   const totalTerminals = selectedTemplate ? selectedTemplate.columns * selectedTemplate.rows : 0;
-  const allocatedCount = agentAllocation.claudeCode + agentAllocation.opencode + agentAllocation.droid + 
-                          agentAllocation.geminiCli + agentAllocation.cursor + agentAllocation.codex + 
-                          agentAllocation.ohMyPi + agentAllocation.aider + agentAllocation.goose + 
-                          agentAllocation.warp + agentAllocation.amp + agentAllocation.kiro;
+  const allocatedCount = Object.values(agentAllocation).reduce((sum, val) => sum + val, 0);
   const noneCount = totalTerminals - allocatedCount;
 
-  // Generate agentAssignments from allocation
-  const [agentAssignments, setAgentAssignments] = useState<Record<string, AgentConfig>>({});
+  const agentAssignments = generateAgentAssignments(agentAllocation, totalTerminals);
 
   useEffect(() => {
+    // Only load templates when modal is actually opened
     if (isOpen) {
       loadTemplates();
+      // Only reset form for create mode, not edit mode
+      if (!isEditMode && !editingWorkspace) {
+        resetForm();
+      }
     }
-  }, [isOpen, loadTemplates]);
+  }, [isOpen, isEditMode, editingWorkspace]);
 
-  // Load workspace data when editing
   useEffect(() => {
     if (isEditMode && editingWorkspace && isOpen) {
-      // Preload workspace data into form
       setWorkspaceName(editingWorkspace.name);
       setSelectedIcon(editingWorkspace.icon || emojis[0]);
       setWorkingDir(editingWorkspace.terminals[0]?.cwd || './');
-      
-      // Extract agent allocation from existing terminals
       const allocation = extractAgentAllocation(editingWorkspace.terminals);
       setAgentAllocation(allocation);
 
-      // Find matching template
-      loadTemplates();
-      const { getTemplate } = useTemplateStore.getState();
       const template = getTemplateByLayout(editingWorkspace.columns, editingWorkspace.rows);
       if (template) {
         setSelectedTemplate(template);
       }
-    } else if (!isEditMode) {
-      // Reset form for create mode
-      resetForm();
+      setCurrentStep('agents');
     }
   }, [editingWorkspace, isEditMode, isOpen]);
 
-  useEffect(() => {
-    if (totalTerminals > 0) {
-      const assignments = generateAgentAssignments(agentAllocation, totalTerminals);
-      setAgentAssignments(assignments);
+  const getTemplateByLayout = (columns: number, rows: number): Template | null => {
+    const templates = ['single', 'dual', 'quad', 'six', 'eight', 'ten', 'twelve', 'fourteen', 'sixteen']
+      .map(id => getTemplate(id))
+      .filter(Boolean) as Template[];
+    return templates.find(t => t.columns === columns && t.rows === rows) || null;
+  };
+
+  const handleNext = useCallback(() => {
+    const currentIndex = steps.indexOf(currentStep);
+    if (currentIndex < steps.length - 1) {
+      setCurrentStep(steps[currentIndex + 1]);
     }
-  }, [agentAllocation, totalTerminals]);
+  }, [currentStep]);
 
-  // Reset allocation when template changes if it exceeds new total
-  useEffect(() => {
-    if (allocatedCount > totalTerminals && totalTerminals > 0) {
-      setAgentAllocation({
-        claudeCode: 0,
-        opencode: 0,
-        droid: 0,
-        geminiCli: 0,
-        cursor: 0,
-        codex: 0,
-        ohMyPi: 0,
-        aider: 0,
-        goose: 0,
-        warp: 0,
-        amp: 0,
-        kiro: 0,
-      });
+  const handleBack = useCallback(() => {
+    const currentIndex = steps.indexOf(currentStep);
+    if (currentIndex > 0) {
+      setCurrentStep(steps[currentIndex - 1]);
     }
-  }, [totalTerminals]);
+  }, [currentStep]);
 
-// Helper function to find template by layout
-const getTemplateByLayout = (columns: number, rows: number): Template | null => {
-  const { getTemplate } = useTemplateStore.getState();
-  
-  // Try to find exact match
-  const templates = [
-    getTemplate('single'),      // 1x1
-    getTemplate('dual'),        // 2x1
-    getTemplate('quad'),        // 2x2
-    getTemplate('six'),         // 3x2
-    getTemplate('eight'),       // 4x2
-    getTemplate('ten'),         // 5x2
-    getTemplate('twelve'),      // 4x3
-    getTemplate('fourteen'),    // custom
-    getTemplate('sixteen'),     // 4x4
-  ].filter(Boolean) as Template[];
-
-  return templates.find(t => t.columns === columns && t.rows === rows) || null;
-};
-
-// Initialize with single template when modal opens
-useEffect(() => {
-  if (isOpen && !selectedTemplate && !isEditMode) {
-    // Default to "single" template - will be loaded asynchronously
-    const initTemplates = async () => {
-      await loadTemplates();
-      const { getTemplate } = useTemplateStore.getState();
-      const singleTemplate = getTemplate('single');
-      if (singleTemplate) {
-        setSelectedTemplate(singleTemplate);
-      }
-    };
-    initTemplates();
-  }
-}, [isOpen, isEditMode]);
+  const handleStepClick = (step: Step) => {
+    const currentIndex = steps.indexOf(currentStep);
+    const targetIndex = steps.indexOf(step);
+    if (targetIndex <= currentIndex) {
+      setCurrentStep(step);
+    }
+  };
 
   const handleBrowseFolder = async () => {
     if (window.electronAPI) {
@@ -254,65 +188,224 @@ useEffect(() => {
         properties: ['openDirectory', 'createDirectory'],
         title: 'Select Working Directory',
       });
-
       if (!result.canceled && result.filePaths.length > 0) {
         setWorkingDir(result.filePaths[0]);
       }
     } else {
       const folder = prompt('Enter working directory path:', workingDir);
-      if (folder) {
-        setWorkingDir(folder);
-      }
+      if (folder) setWorkingDir(folder);
     }
   };
 
-  const handleReset = () => {
-    setAgentAllocation({
-      claudeCode: 0,
-      opencode: 0,
-      droid: 0,
-      geminiCli: 0,
-      cursor: 0,
-      codex: 0,
-      ohMyPi: 0,
-      aider: 0,
-      goose: 0,
-      warp: 0,
-      amp: 0,
-      kiro: 0,
+  const handleAgentChange = (agentType: AgentType, delta: number) => {
+    if (delta === 0) return;
+    
+    const key = agentAllocationKeys[agentType];
+    if (!key || key === 'droid' && agentType !== 'droid') return;
+
+    setAgentAllocation(prev => {
+      const currentValue = prev[key];
+      const maxAvailable = totalTerminals - (allocatedCount - currentValue);
+      const newValue = Math.max(0, Math.min(maxAvailable, currentValue + delta));
+      return { ...prev, [key]: newValue };
+    });
+  };
+
+  const handleAgentDirectChange = (agentType: AgentType, value: number) => {
+    const key = agentAllocationKeys[agentType];
+    if (!key) return;
+
+    setAgentAllocation(prev => {
+      const currentValue = prev[key];
+      const otherAgentsCount = allocatedCount - currentValue;
+      const maxAvailable = totalTerminals - otherAgentsCount;
+      const newValue = Math.max(0, Math.min(maxAvailable, value));
+      return { ...prev, [key]: newValue };
     });
   };
 
   const handleAutoDistribute = () => {
     if (totalTerminals === 0) return;
-
-    // Auto-fill by priority: distribute evenly among top agents
-    const numAgents = 12; // Total number of agent types
+    const numAgents = agentTypeInfo.length;
     const base = Math.floor(totalTerminals / numAgents);
     const remainder = totalTerminals % numAgents;
 
-    const allocation = {
-      claudeCode: base,
-      opencode: base,
-      droid: base,
-      geminiCli: base,
-      cursor: base,
-      codex: base,
-      ohMyPi: base,
-      aider: base,
-      goose: base,
-      warp: base,
-      amp: base,
-      kiro: base,
+    const allocation: AgentAllocation = {
+      claudeCode: base, opencode: base, droid: base, geminiCli: base, cursor: base, codex: base,
+      ohMyPi: base, aider: base, goose: base, warp: base, amp: base, kiro: base,
     };
 
-    // Distribute remainder
-    const keys = Object.keys(allocation) as (keyof typeof allocation)[];
+    const keys = Object.keys(allocation) as (keyof AgentAllocation)[];
     for (let i = 0; i < remainder; i++) {
       allocation[keys[i]]++;
     }
-
     setAgentAllocation(allocation);
+  };
+
+  const handleReset = () => {
+    setAgentAllocation({
+      claudeCode: 0, opencode: 0, droid: 0, geminiCli: 0, cursor: 0, codex: 0,
+      ohMyPi: 0, aider: 0, goose: 0, warp: 0, amp: 0, kiro: 0,
+    });
+  };
+
+  const handleCommandInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && commandInput.trim()) {
+      const command = commandInput.trim();
+      
+      // Add to history
+      setCommandHistory(prev => [...prev.slice(-9), command]);
+      setHistoryIndex(-1);
+      setShowSuggestions(false);
+      
+      // Parse command
+      if (command.startsWith('cd ')) {
+        const path = command.slice(3).trim();
+        // Handle special paths
+        if (path === '~') {
+          setWorkingDir('~');
+        } else if (path === '.' || path === './') {
+          setWorkingDir('./');
+        } else if (path === '..') {
+          // Go up one directory
+          setWorkingDir(prev => {
+            const parts = prev.split(/[\\/]/).filter(Boolean);
+            parts.pop();
+            return parts.length === 0 ? './' : parts.join('/') + '/';
+          });
+        } else {
+          // Set to specified path
+          setWorkingDir(path);
+        }
+      } else if (command === 'ls' || command === 'dir') {
+        // Just visual feedback - in real app would show directory contents
+        console.log('[Mock] Listing directory:', workingDir);
+      } else if (command === 'pwd') {
+        console.log('[Mock] Current directory:', workingDir);
+      }
+      
+      setCommandInput('');
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      if (suggestions.length > 0) {
+        // Select current suggestion
+        const selectedPath = suggestions[selectedSuggestionIndex];
+        const lastSpaceIndex = commandInput.lastIndexOf(' ');
+        const basePath = lastSpaceIndex >= 0 ? commandInput.slice(0, lastSpaceIndex + 1) : '';
+        setCommandInput(basePath + selectedPath);
+        setShowSuggestions(false);
+        setSuggestions([]);
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (commandHistory.length > 0) {
+        const newIndex = historyIndex < commandHistory.length - 1 ? historyIndex + 1 : historyIndex;
+        setHistoryIndex(newIndex);
+        setCommandInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+      }
+      setShowSuggestions(false);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex > 0) {
+        const newIndex = historyIndex - 1;
+        setHistoryIndex(newIndex);
+        setCommandInput(commandHistory[commandHistory.length - 1 - newIndex] || '');
+      } else {
+        setHistoryIndex(-1);
+        setCommandInput('');
+      }
+      setShowSuggestions(false);
+    } else if (e.key === 'ArrowUp' && showSuggestions) {
+      e.preventDefault();
+      setSelectedSuggestionIndex(prev => 
+        prev > 0 ? prev - 1 : suggestions.length - 1
+      );
+    } else if (e.key === 'ArrowDown' && showSuggestions) {
+      e.preventDefault();
+      setSelectedSuggestionIndex(prev => 
+        prev < suggestions.length - 1 ? prev + 1 : 0
+      );
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setSuggestions([]);
+    }
+  };
+
+  const handleCommandChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setCommandInput(value);
+    
+    // Show suggestions for cd command
+    if (value.startsWith('cd ') && value.length > 3) {
+      const partialPath = value.slice(3).trim();
+      const mockedPaths = getMockedPaths(partialPath);
+      
+      if (mockedPaths.length > 0) {
+        setSuggestions(mockedPaths);
+        setShowSuggestions(true);
+        setSelectedSuggestionIndex(0);
+      } else {
+        setShowSuggestions(false);
+        setSuggestions([]);
+      }
+    } else {
+      setShowSuggestions(false);
+      setSuggestions([]);
+    }
+  };
+
+  // Mock file system paths for auto-completion
+  const getMockedPaths = (partial: string): string[] => {
+    const commonPaths = [
+      'C:/Projects/tdt-clone',
+      'C:/Projects/my-app',
+      'C:/Projects/frontend',
+      'C:/Projects/backend',
+      'C:/Users/ASUS/Desktop',
+      'C:/Users/ASUS/Documents',
+      'C:/Users/ASUS/Downloads',
+      'D:/dev/workspace',
+      'D:/dev/projects',
+      '~/projects/app1',
+      '~/projects/app2',
+      '~/workspace/frontend',
+      './src',
+      './dist',
+      './node_modules',
+      './public',
+      '../sibling-project',
+      '../parent-folder',
+    ];
+    
+    if (!partial) return commonPaths.slice(0, 5);
+    
+    return commonPaths.filter(path => 
+      path.toLowerCase().includes(partial.toLowerCase())
+    ).slice(0, 8);
+  };
+
+  const handleDragStart = (e: React.DragEvent, agentType: AgentType) => {
+    e.dataTransfer.setData('agentType', agentType);
+    e.dataTransfer.effectAllowed = 'copy';
+    setDraggedAgent(agentType);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedAgent(null);
+  };
+
+  const handleDropOnSlot = (e: React.DragEvent, slotIndex: number) => {
+    e.preventDefault();
+    const agentType = e.dataTransfer.getData('agentType') as AgentType;
+    if (!agentType) return;
+
+    const key = agentAllocationKeys[agentType];
+    if (!key) return;
+
+    setAgentAllocation(prev => {
+      if (prev[key] >= totalTerminals) return prev;
+      return { ...prev, [key]: prev[key] + 1 };
+    });
   };
 
   const handleCreateWorkspace = () => {
@@ -327,16 +420,11 @@ useEffect(() => {
     });
 
     if (isEditMode && editingWorkspace) {
-      // Edit mode: recreate workspace with new layout
       const getShell = () => editingWorkspace.terminals[0]?.shell || 'powershell.exe';
-      
       const newTerminals = [];
       const totalNewTerminals = selectedTemplate.columns * selectedTemplate.rows;
-      
-      // Preserve agent allocation based on the slider values
       let terminalIndex = 0;
-      
-      // Helper to allocate terminals for an agent type
+
       const allocateAgent = (type: AgentType, count: number) => {
         for (let i = 0; i < count && terminalIndex < totalNewTerminals; i++) {
           newTerminals.push({
@@ -350,8 +438,7 @@ useEffect(() => {
           terminalIndex++;
         }
       };
-      
-      // Allocate agents based on current allocation
+
       allocateAgent('claude-code', agentAllocation.claudeCode);
       allocateAgent('opencode', agentAllocation.opencode);
       allocateAgent('droid', agentAllocation.droid);
@@ -364,8 +451,7 @@ useEffect(() => {
       allocateAgent('warp', agentAllocation.warp);
       allocateAgent('amp', agentAllocation.amp);
       allocateAgent('kiro', agentAllocation.kiro);
-      
-      // Fill remaining with none
+
       while (terminalIndex < totalNewTerminals) {
         newTerminals.push({
           id: generateId(),
@@ -378,7 +464,6 @@ useEffect(() => {
         terminalIndex++;
       }
 
-      // Update workspace with new layout and terminals
       updateWorkspace(editingWorkspace.id, {
         name: workspaceName,
         icon: selectedIcon,
@@ -387,7 +472,7 @@ useEffect(() => {
         terminals: newTerminals,
       });
     } else {
-      // Create mode: add new workspace
+      // Create mode: add new workspace and auto-spawn terminals
       const workspace = addWorkspace({
         name: workspaceName,
         columns: selectedTemplate.columns,
@@ -397,10 +482,40 @@ useEffect(() => {
         agentAssignments: finalAgentAssignments,
         templateId: selectedTemplate.id,
       });
-
       setCurrentWorkspace(workspace);
+
+      // Auto-spawn all terminals after a short delay
+      setTimeout(async () => {
+        if (window.electronAPI) {
+          try {
+            for (let i = 0; i < workspace.terminals.length; i++) {
+              const terminal = workspace.terminals[i];
+              const agentKey = `term-${i}`;
+              const agentConfig = finalAgentAssignments[agentKey];
+              
+              if (agentConfig && agentConfig.enabled && agentConfig.type !== 'none') {
+                await window.electronAPI.spawnTerminalWithAgent(
+                  terminal.id,
+                  workingDir,
+                  agentConfig,
+                  workspace.id
+                );
+              } else {
+                await window.electronAPI.spawnTerminal(
+                  terminal.id,
+                  workingDir,
+                  workspace.id
+                );
+              }
+            }
+            console.log('[WorkspaceCreationModal] Auto-spawned terminals for:', workspace.name);
+          } catch (err) {
+            console.error('[WorkspaceCreationModal] Failed to spawn terminals:', err);
+          }
+        }
+      }, 100);
     }
-    
+
     onClose();
     resetForm();
   };
@@ -411,397 +526,371 @@ useEffect(() => {
     setSelectedTemplate(null);
     setWorkingDir('./');
     setAgentAllocation({
-      claudeCode: 0,
-      opencode: 0,
-      droid: 0,
-      geminiCli: 0,
-      cursor: 0,
-      codex: 0,
-      ohMyPi: 0,
-      aider: 0,
-      goose: 0,
-      warp: 0,
-      amp: 0,
-      kiro: 0,
+      claudeCode: 0, opencode: 0, droid: 0, geminiCli: 0, cursor: 0, codex: 0,
+      ohMyPi: 0, aider: 0, goose: 0, warp: 0, amp: 0, kiro: 0,
     });
+    setCurrentStep('template');
+    setSearchQuery('');
+    setIconSearchQuery('');
   };
 
-  // Calculate max values for each slider
-  const getMaxForAgent = (excludeKey: keyof AgentAllocation) => {
-    const sumOthers = Object.entries(agentAllocation)
-      .filter(([key]) => key !== excludeKey)
-      .reduce((sum, [, value]) => sum + value, 0);
-    return totalTerminals - sumOthers;
+  const canProceed = () => {
+    switch (currentStep) {
+      case 'template': return selectedTemplate !== null;
+      case 'info': return workspaceName.trim().length > 0;
+      case 'directory': return workingDir.trim().length > 0;
+      case 'agents': return true;
+      default: return false;
+    }
   };
 
-  if (!isOpen) return null;
+  const filteredEmojis = emojis.filter(emoji => 
+    iconSearchQuery === '' || emoji.includes(iconSearchQuery)
+  );
+
+  const isLastStep = currentStep === 'agents';
+  const isFirstStep = currentStep === 'template';
 
   return (
-    <div style={styles.overlay}>
-      <div style={styles.modal}>
-        {/* Header */}
-        <div style={styles.header}>
-          <h2 style={styles.title}>{isEditMode ? 'Edit Workspace' : 'Create New Workspace'}</h2>
-          <button onClick={onClose} style={styles.closeButton}>×</button>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-container" onClick={e => e.stopPropagation()}>
+        {/* Header with Progress */}
+        <div className="modal-header">
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <div className="progress-stepper">
+            {stepInfo.map((step, index) => {
+              const stepIndex = steps.indexOf(step.id);
+              const currentIndex = steps.indexOf(currentStep);
+              const isCompleted = stepIndex < currentIndex;
+              const isActive = stepIndex === currentIndex;
+              
+              return (
+                <React.Fragment key={step.id}>
+                  <button
+                    className={`step-item ${isCompleted ? 'completed' : ''} ${isActive ? 'active' : ''}`}
+                    onClick={() => handleStepClick(step.id)}
+                    disabled={stepIndex > currentIndex}
+                  >
+                    <div className="step-icon">
+                      {isCompleted ? '✓' : step.icon}
+                    </div>
+                    <div className="step-info">
+                      <span className="step-title">{step.title}</span>
+                      <span className="step-subtitle">{step.subtitle}</span>
+                    </div>
+                  </button>
+                  {index < stepInfo.length - 1 && <div className="step-connector" />}
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
 
         {/* Content */}
-        <div style={styles.content}>
-          {/* Step 1: Template Selection */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>1. Select Template</h3>
-            <p style={styles.sectionDescription}>
-              Choose a pre-built template or create a custom one
-            </p>
-            <TemplateSelector
-              selectedTemplate={selectedTemplate}
-              onSelectTemplate={setSelectedTemplate}
-            />
-          </div>
-
-          {/* Step 2: Basic Info */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>2. Basic Information</h3>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Workspace Name</label>
-              <input
-                type="text"
-                value={workspaceName}
-                onChange={(e) => setWorkspaceName(e.target.value)}
-                style={styles.input}
-                placeholder="Enter workspace name"
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Icon</label>
-              <div style={styles.emojiPicker}>
-                {emojis.map((emoji) => (
-                  <button
-                    key={emoji}
-                    onClick={() => setSelectedIcon(emoji)}
-                    style={{
-                      ...styles.emojiButton,
-                      backgroundColor: selectedIcon === emoji ? '#45475a' : 'transparent',
-                      border: selectedIcon === emoji ? '2px solid #89b4fa' : '1px solid #45475a',
-                    }}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Step 3: Working Directory */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>3. Working Directory</h3>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Terminal Working Directory</label>
-              <div style={styles.folderInput}>
-                <input
-                  type="text"
-                  value={workingDir}
-                  onChange={(e) => setWorkingDir(e.target.value)}
-                  style={{ ...styles.input, flex: 1 }}
-                  placeholder="e.g., C:\Projects\my-app"
-                />
-                <button onClick={handleBrowseFolder} style={styles.browseButton}>
-                  📁 Browse
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Step 4: Agent Allocation */}
-          <div style={styles.section}>
-            <h3 style={styles.sectionTitle}>4. AI Agents Allocation</h3>
-            <p style={styles.sectionDescription}>
-              Drag sliders to allocate AI agents to terminals
-            </p>
-
-            {/* Allocation Summary */}
-            <div style={styles.allocationSummary}>
-              <div style={styles.summaryRow}>
-                <span style={styles.summaryLabel}>Total Terminals:</span>
-                <span style={styles.summaryValue}>{totalTerminals}</span>
-              </div>
-              <div style={styles.summaryRow}>
-                <span style={styles.summaryLabel}>Allocated:</span>
-                <span style={{
-                  ...styles.summaryValue,
-                  color: allocatedCount > totalTerminals ? '#f38ba8' : '#a6e3a1'
-                }}>
-                  {allocatedCount}/{totalTerminals}
-                </span>
-              </div>
-              {noneCount > 0 && (
-                <div style={styles.summaryRow}>
-                  <span style={{ ...styles.summaryLabel, color: '#6c7086' }}>None (plain terminals):</span>
-                  <span style={{ ...styles.summaryValue, color: '#6c7086' }}>{noneCount}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Agent Sliders */}
-            <div style={styles.slidersContainer}>
-              {agentTypeInfo.map((agent) => {
-                const allocationKey = agent.type === 'claude-code' ? 'claudeCode' : 
-                                     agent.type === 'opencode' ? 'opencode' :
-                                     agent.type === 'gemini-cli' ? 'geminiCli' :
-                                     agent.type === 'cursor' ? 'cursor' :
-                                     agent.type === 'codex' ? 'codex' :
-                                     agent.type === 'oh-my-pi' ? 'ohMyPi' :
-                                     agent.type === 'aider' ? 'aider' :
-                                     agent.type === 'goose' ? 'goose' :
-                                     agent.type === 'warp' ? 'warp' :
-                                     agent.type === 'amp' ? 'amp' :
-                                     agent.type === 'kiro' ? 'kiro' : 'droid';
-                
-                return (
-                  <AgentAllocationSlider
-                    key={agent.type}
-                    label={agent.label}
-                    icon={agent.icon}
-                    value={agentAllocation[allocationKey]}
-                    maxValue={getMaxForAgent(allocationKey)}
-                    onChange={(value) => setAgentAllocation(prev => ({
-                      ...prev,
-                      [allocationKey]: value
-                    }))}
-                    color={agent.color}
-                    description={agent.description}
+        <div className="modal-content">
+          <div ref={stepRef} className="step-content">
+            {/* Step 1: Template Selection */}
+            {currentStep === 'template' && (
+              <div className="template-selection-step">
+                <div className="template-grid">
+                  <TemplateList
+                    templates={useTemplateStore.getState().getBuiltInTemplates()}
+                    selectedTemplate={selectedTemplate}
+                    onSelectTemplate={setSelectedTemplate}
                   />
-                );
-              })}
-            </div>
+                  <TemplateList
+                    templates={useTemplateStore.getState().getCustomTemplates()}
+                    selectedTemplate={selectedTemplate}
+                    onSelectTemplate={setSelectedTemplate}
+                  />
+                </div>
+              </div>
+            )}
 
-            {/* Action Buttons */}
-            <div style={styles.allocationActions}>
-              <button onClick={handleReset} style={styles.resetButton}>
-                🔄 Reset to None
-              </button>
-              <button onClick={handleAutoDistribute} style={styles.autoButton}>
-                ⚡ Auto-distribute
-              </button>
-            </div>
+            {/* Step 2: Basic Info */}
+            {currentStep === 'info' && (
+              <div className="basic-info-step">
+                <div className="form-group">
+                  <label className="form-label">Workspace Name</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={workspaceName}
+                    onChange={e => setWorkspaceName(e.target.value)}
+                    placeholder="Enter workspace name"
+                    autoFocus
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Icon</label>
+                  <input
+                    type="text"
+                    className="form-input search-input"
+                    value={iconSearchQuery}
+                    onChange={e => setIconSearchQuery(e.target.value)}
+                    placeholder="Search icons..."
+                  />
+                  <div className="emoji-grid">
+                    {filteredEmojis.map(emoji => (
+                      <button
+                        key={emoji}
+                        className={`emoji-btn ${selectedIcon === emoji ? 'selected' : ''}`}
+                        onClick={() => setSelectedIcon(emoji)}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="workspace-preview">
+                  <span className="preview-label">Preview:</span>
+                  <div className="preview-tab">
+                    <span className="preview-icon">{selectedIcon}</span>
+                    <span className="preview-name">{workspaceName || 'Workspace Name'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: Directory */}
+            {currentStep === 'directory' && (
+              <div className="directory-step">
+                <div className="quick-access">
+                  <button className="quick-btn" onClick={() => setWorkingDir('./')}>
+                    📁 Current
+                  </button>
+                  <button className="quick-btn" onClick={handleBrowseFolder}>
+                    💻 Browse
+                  </button>
+                  <button className="quick-btn" onClick={() => setWorkingDir('~')}>
+                    🏠 Home
+                  </button>
+                </div>
+                
+                {/* Terminal-style Command Input */}
+                <div className="terminal-command-section">
+                  <label className="form-label">🖥️ Quick Navigate (type commands)</label>
+                  <div className="terminal-command-wrapper" ref={suggestionsRef}>
+                    <div className="terminal-command-input">
+                      <span className="terminal-prompt">user@tdt:~$</span>
+                      <input
+                        ref={commandInputRef}
+                        type="text"
+                        className="terminal-input"
+                        value={commandInput}
+                        onChange={handleCommandChange}
+                        onKeyDown={handleCommandInput}
+                        placeholder="cd path/to/folder (try: cd .., cd ~, cd ./)"
+                        autoFocus
+                      />
+                    </div>
+                    
+                    {/* Auto-complete Suggestions Dropdown */}
+                    {showSuggestions && suggestions.length > 0 && (
+                      <div className="suggestions-dropdown">
+                        {suggestions.map((path, index) => (
+                          <button
+                            key={path}
+                            className={`suggestion-item ${index === selectedSuggestionIndex ? 'selected' : ''}`}
+                            onClick={() => {
+                              const lastSpaceIndex = commandInput.lastIndexOf(' ');
+                              const basePath = lastSpaceIndex >= 0 ? commandInput.slice(0, lastSpaceIndex + 1) : '';
+                              setCommandInput(basePath + path);
+                              setShowSuggestions(false);
+                              setSuggestions([]);
+                            }}
+                            onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                          >
+                            <span className="suggestion-icon">📁</span>
+                            <span className="suggestion-path">{path}</span>
+                            {index === selectedSuggestionIndex && (
+                              <span className="suggestion-hint">Tab</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="command-hints">
+                    <span className="hint">cd .. (up)</span>
+                    <span className="hint">cd ~ (home)</span>
+                    <span className="hint">Tab (complete)</span>
+                    <span className="hint">↑↓ (history)</span>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Working Directory</label>
+                  <div className="directory-input">
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={workingDir}
+                      onChange={e => setWorkingDir(e.target.value)}
+                      placeholder="e.g., C:\Projects\my-app"
+                    />
+                    <button className="browse-btn" onClick={handleBrowseFolder}>
+                      📂 Browse
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 4: Agents */}
+            {currentStep === 'agents' && (
+              <div className="agents-step">
+                <div className="allocation-summary">
+                  <div className="summary-item">
+                    <span className="summary-label">Total</span>
+                    <span className="summary-value">{totalTerminals}</span>
+                  </div>
+                  <div className="summary-item">
+                    <span className="summary-label">Allocated</span>
+                    <span className={`summary-value ${allocatedCount > totalTerminals ? 'error' : 'success'}`}>
+                      {allocatedCount}/{totalTerminals}
+                    </span>
+                  </div>
+                  {noneCount > 0 && (
+                    <div className="summary-item">
+                      <span className="summary-label">None</span>
+                      <span className="summary-value muted">{noneCount}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="agents-layout">
+                  <div className="agents-sidebar">
+                    <h4 className="sidebar-title">AI Agents</h4>
+                    <p className="sidebar-subtitle">Drag, click count, or use + buttons</p>
+                    {agentTypeInfo.map(agent => {
+                      const key = agentAllocationKeys[agent.type];
+                      const count = key ? agentAllocation[key] : 0;
+                      const maxForAgent = totalTerminals - (allocatedCount - count);
+                      return (
+                        <AgentItem
+                          key={agent.type}
+                          type={agent.type}
+                          label={agent.label}
+                          icon={agent.icon}
+                          count={count}
+                          maxValue={maxForAgent}
+                          onIncrement={() => handleAgentChange(agent.type, 1)}
+                          onDecrement={() => handleAgentChange(agent.type, -1)}
+                          onChange={(value) => handleAgentDirectChange(agent.type, value)}
+                          onDragStart={(e) => handleDragStart(e, agent.type)}
+                          onDragEnd={handleDragEnd}
+                        />
+                      );
+                    })}
+                    <div className="agent-actions">
+                      <button className="action-btn" onClick={handleReset}>
+                        🔄 Reset
+                      </button>
+                      <button className="action-btn primary" onClick={handleAutoDistribute}>
+                        ⚡ Auto
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="agents-main">
+                    <div className="terminal-grid-preview">
+                      {selectedTemplate && (
+                        <div 
+                          className="terminal-grid"
+                          style={{
+                            gridTemplateColumns: `repeat(${selectedTemplate.columns}, 1fr)`,
+                            gridTemplateRows: `repeat(${selectedTemplate.rows}, 1fr)`,
+                          }}
+                        >
+                          {Array.from({ length: totalTerminals }).map((_, i) => {
+                            const key = `terminal-${i}`;
+                            const agent = agentAssignments[key];
+                            const agentInfo = agentTypeInfo.find(a => a.type === agent?.type);
+                            return (
+                              <div
+                                key={i}
+                                className="terminal-slot"
+                                onDragOver={e => e.preventDefault()}
+                                onDrop={e => handleDropOnSlot(e, i)}
+                              >
+                                {agentInfo ? (
+                                  <div className="terminal-agent">
+                                    <img src={agentInfo.icon} alt={agentInfo.label} className="agent-icon-img" draggable={false} />
+                                    <span className="agent-short">{agentInfo.label}</span>
+                                  </div>
+                                ) : (
+                                  <span className="slot-empty">Empty</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Footer */}
-        <div style={styles.footer}>
-          <button onClick={onClose} style={styles.cancelButton}>
+        <div className="modal-footer">
+          <button 
+            className="footer-btn secondary"
+            onClick={onClose}
+          >
             Cancel
           </button>
-          <button
-            onClick={handleCreateWorkspace}
-            style={{
-              ...styles.createButton,
-              opacity: selectedTemplate ? 1 : 0.5,
-              pointerEvents: selectedTemplate ? 'auto' : 'none',
-            }}
-          >
-            {isEditMode ? '💾 Save Changes' : '🚀 Create Workspace'}
-          </button>
+          {!isFirstStep && (
+            <button 
+              className="footer-btn"
+              onClick={handleBack}
+            >
+              ← Back
+            </button>
+          )}
+          <div className="footer-spacer" />
+          {isLastStep ? (
+            <button 
+              className="footer-btn primary"
+              onClick={handleCreateWorkspace}
+              disabled={!canProceed()}
+            >
+              {isEditMode ? '💾 Save Changes' : '🚀 Create Workspace'}
+            </button>
+          ) : (
+            <button 
+              className="footer-btn primary"
+              onClick={handleNext}
+              disabled={!canProceed()}
+            >
+              Next →
+            </button>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: 'fixed',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000,
-  },
-  modal: {
-    backgroundColor: '#1e1e2e',
-    borderRadius: '12px',
-    border: '1px solid #45475a',
-    width: '90%',
-    maxWidth: '900px',
-    maxHeight: '90vh',
-    display: 'flex',
-    flexDirection: 'column',
-    overflow: 'hidden',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '20px 24px',
-    borderBottom: '1px solid #45475a',
-  },
-  title: {
-    fontSize: '20px',
-    fontWeight: 600,
-    color: '#cdd6f4',
-    margin: 0,
-  },
-  closeButton: {
-    background: 'none',
-    border: 'none',
-    color: '#a6adc8',
-    fontSize: '28px',
-    cursor: 'pointer',
-    padding: '0 8px',
-  },
-  content: {
-    flex: 1,
-    overflowY: 'auto',
-    padding: '24px',
-  },
-  section: {
-    marginBottom: '32px',
-  },
-  sectionTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#89b4fa',
-    marginBottom: '16px',
-  },
-  sectionDescription: {
-    fontSize: '13px',
-    color: '#a6adc8',
-    marginBottom: '12px',
-  },
-  formGroup: {
-    marginBottom: '16px',
-  },
-  label: {
-    display: 'block',
-    fontSize: '13px',
-    fontWeight: 500,
-    color: '#bac2de',
-    marginBottom: '8px',
-  },
-  input: {
-    width: '100%',
-    padding: '10px 12px',
-    fontSize: '14px',
-    backgroundColor: '#313244',
-    border: '1px solid #45475a',
-    borderRadius: '6px',
-    color: '#cdd6f4',
-    outline: 'none',
-  },
-  emojiPicker: {
-    display: 'flex',
-    gap: '8px',
-    flexWrap: 'wrap',
-  },
-  emojiButton: {
-    fontSize: '24px',
-    padding: '8px',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  folderInput: {
-    display: 'flex',
-    gap: '8px',
-  },
-  browseButton: {
-    padding: '10px 16px',
-    fontSize: '14px',
-    fontWeight: 600,
-    backgroundColor: '#45475a',
-    color: '#cdd6f4',
-    border: '1px solid #585b70',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  allocationSummary: {
-    backgroundColor: '#313244',
-    border: '1px solid #45475a',
-    borderRadius: '8px',
-    padding: '16px',
-    marginBottom: '20px',
-  },
-  summaryRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '8px',
-  },
-  summaryLabel: {
-    fontSize: '14px',
-    color: '#bac2de',
-  },
-  summaryValue: {
-    fontSize: '14px',
-    fontWeight: 600,
-    color: '#cdd6f4',
-    backgroundColor: '#45475a',
-    padding: '4px 12px',
-    borderRadius: '4px',
-  },
-  slidersContainer: {
-    marginBottom: '16px',
-  },
-  allocationActions: {
-    display: 'flex',
-    gap: '12px',
-  },
-  resetButton: {
-    flex: 1,
-    padding: '10px 16px',
-    fontSize: '13px',
-    fontWeight: 600,
-    backgroundColor: '#313244',
-    color: '#a6adc8',
-    border: '1px solid #45475a',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  autoButton: {
-    flex: 1,
-    padding: '10px 16px',
-    fontSize: '13px',
-    fontWeight: 600,
-    backgroundColor: '#45475a',
-    color: '#89b4fa',
-    border: '1px solid #585b70',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  footer: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '12px',
-    padding: '20px 24px',
-    borderTop: '1px solid #45475a',
-  },
-  cancelButton: {
-    padding: '10px 20px',
-    fontSize: '14px',
-    fontWeight: 600,
-    backgroundColor: 'transparent',
-    color: '#a6adc8',
-    border: '1px solid #45475a',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-  createButton: {
-    padding: '10px 24px',
-    fontSize: '14px',
-    fontWeight: 600,
-    backgroundColor: '#89b4fa',
-    color: '#1e1e2e',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-  },
-};
+const TemplateList = memo(({ templates, selectedTemplate, onSelectTemplate }: {
+  templates: Template[];
+  selectedTemplate: Template | null;
+  onSelectTemplate: (template: Template) => void;
+}) => {
+  return (
+    <>
+      {templates.map(template => (
+        <TemplateCard
+          key={template.id}
+          template={template}
+          isSelected={selectedTemplate?.id === template.id}
+          onSelect={onSelectTemplate}
+        />
+      ))}
+    </>
+  );
+});
+TemplateList.displayName = 'TemplateList';

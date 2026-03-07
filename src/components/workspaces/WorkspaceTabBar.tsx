@@ -360,10 +360,13 @@ export const WorkspaceTabBar: React.FC = () => {
         />
       )}
 
-      <WorkspaceCreationModal
-        isOpen={isWorkspaceModalOpen}
-        onClose={() => setWorkspaceModalOpen(false)}
-      />
+      {isWorkspaceModalOpen && (
+        <WorkspaceCreationModal
+          isOpen={isWorkspaceModalOpen}
+          onClose={() => setWorkspaceModalOpen(false)}
+          editingWorkspace={useWorkspaceStore.getState().editingWorkspace}
+        />
+      )}
     </>
   );
 };
