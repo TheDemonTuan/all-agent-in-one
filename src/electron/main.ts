@@ -196,7 +196,7 @@ app.on('before-quit', () => {
   const isDev = !app.isPackaged;
   log.info('App quitting, cleaning up terminals...');
 
-  const killCount = cleanupAllTerminals(isDev);
+  const killCount = cleanupAllTerminals(isDev, mainWindow);
   log.info(`Cleaned up ${killCount} terminal(s)`);
 
   // Force quit after cleanup completes

@@ -1,9 +1,8 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
-import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 import { TerminalPane, AgentType } from '../../types/workspace';
 import { useWorkspaceStore } from '../../stores/workspaceStore';
@@ -87,7 +86,8 @@ interface TerminalCellProps {
 
 const agentIcons = AGENT_ICONS;
 
-export const TerminalCell: React.FC<TerminalCellProps> = ({
+// Memoize TerminalCell to prevent unnecessary re-renders (VAL-PERF-005)
+export const TerminalCell = React.memo<TerminalCellProps>(({
   terminal,
   isActive,
   onActivate,
@@ -100,7 +100,6 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const webLinksAddonRef = useRef<WebLinksAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
-  const webglAddonRef = useRef<WebglAddon | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const hasInitializedRef = useRef(false);
   const hasInitiallyFitRef = useRef(false);
@@ -147,6 +146,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
   
   const [vnPatched, setVnPatched] = useState(false);
   const [spawnError, setSpawnError] = useState<string | null>(null);
+  const errorToastTimersRef = useRef<NodeJS.Timeout[]>([]);
 
   // Check Vietnamese IME patch status for Claude Code terminals
   React.useEffect(() => {
@@ -356,6 +356,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
       containerRef.current.innerHTML = '';
     }
 
+    // Optimized terminal options for better performance (VAL-PERF-008)
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 14,
@@ -363,17 +364,23 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
       allowProposedApi: true,
       // Configure scrollback buffer to prevent memory bloat (VAL-PERF-002)
       scrollback: 1000, // Limit to 1000 lines for optimal memory usage
+
+      // Performance optimizations (VAL-PERF-008)
+      drawBoldTextInBrightColors: true,
+      minimumContrastRatio: 1, // Skip contrast recalculation for performance
     });
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
     const searchAddon = new SearchAddon();
-    const webglAddon = new WebglAddon();
+
+    // Disable WebGL - use canvas rendering only for better compatibility
+    // WebGL causes issues on many systems with GPU virtualization
+    // Note: Not loading WebglAddon at all to avoid "Stacking order" and WebGL errors
 
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
     term.loadAddon(searchAddon);
-    term.loadAddon(webglAddon);
     term.open(containerRef.current);
 
     // Delay initial fit to ensure container has proper dimensions
@@ -402,7 +409,6 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
     fitAddonRef.current = fitAddon;
     webLinksAddonRef.current = webLinksAddon;
     searchAddonRef.current = searchAddon;
-    webglAddonRef.current = webglAddon;
     hasInitializedRef.current = true;
 
     term.options.theme = theme === 'dark' ? DARK_THEME : LIGHT_THEME;
@@ -493,9 +499,10 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
         terminalRef.current?.write(`\r\n\x1b[31m❌ Error: ${error}\x1b[0m\r\n`);
         updateTerminalStatus(terminal.id, 'error');
         setSpawnError(error);
-        
+
         // Auto-hide error toast after 10 seconds
-        setTimeout(() => setSpawnError(null), 10000);
+        const timer = setTimeout(() => setSpawnError(null), 10000);
+        errorToastTimersRef.current.push(timer);
       }
     });
 
@@ -584,7 +591,8 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
           setSpawnError(result.error);
           updateTerminalStatus(terminal.id, 'error');
           term.write(`\r\n\x1b[31m❌ ${result.error}\x1b[0m\r\n`);
-          setTimeout(() => setSpawnError(null), 10000);
+          const timer = setTimeout(() => setSpawnError(null), 10000);
+          errorToastTimersRef.current.push(timer);
         }
       })
       .catch((err: any) => {
@@ -592,11 +600,16 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
         const errorMsg = err?.message || String(err);
         setSpawnError(errorMsg);
         term.write(`\r\n\x1b[31m❌ Failed to start terminal: ${errorMsg}\x1b[0m\r\n`);
-        setTimeout(() => setSpawnError(null), 10000);
+        const timer = setTimeout(() => setSpawnError(null), 10000);
+        errorToastTimersRef.current.push(timer);
       });
 
     return () => {
       console.log(`[TerminalCell ${terminal.id}] Cleaning up terminal`);
+
+      // Clear all error toast timers to prevent memory leaks
+      errorToastTimersRef.current.forEach(timer => clearTimeout(timer));
+      errorToastTimersRef.current = [];
 
       // Clear any pending debounce timers first to prevent memory leaks
       if (fitDebounceRef.current) {
@@ -635,6 +648,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
       // Kill PTY process in main process BEFORE disposing UI terminal
       // This ensures the process is terminated and won't send more data
       if (typeof window !== 'undefined' && (window as any).electronAPI) {
+        // Synchronously fire-and-forget to avoid await delays during cleanup
         (window as any).electronAPI.terminalKill(terminal.id).catch((err: any) => {
           console.warn(`[TerminalCell ${terminal.id}] Failed to kill terminal process:`, err);
         });
@@ -643,7 +657,7 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
       // Dispose xterm.js event handlers (VAL-MEM-004)
       // Must be done BEFORE terminal.dispose() to properly detach all handlers
       console.log(`[TerminalCell ${terminal.id}] Disposing xterm.js event handlers...`);
-      
+
       // Dispose onData handler
       if (xtermDisposablesRef.current.onDataDisposable) {
         console.log(`[TerminalCell ${terminal.id}] Disposing onData handler`);
@@ -696,16 +710,6 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
           console.warn(`[TerminalCell ${terminal.id}] Error disposing SearchAddon:`, err);
         }
         searchAddonRef.current = null;
-      }
-
-      if (webglAddonRef.current) {
-        try {
-          console.log(`[TerminalCell ${terminal.id}] Disposing WebglAddon`);
-          webglAddonRef.current.dispose();
-        } catch (err: any) {
-          console.warn(`[TerminalCell ${terminal.id}] Error disposing WebglAddon:`, err);
-        }
-        webglAddonRef.current = null;
       }
 
       // Dispose the terminal instance - this handles:
@@ -1006,7 +1010,17 @@ export const TerminalCell: React.FC<TerminalCellProps> = ({
       )}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function for React.memo (VAL-PERF-005)
+  // Prevent re-render if these props haven't changed
+  return (
+    prevProps.terminal.id === nextProps.terminal.id &&
+    prevProps.terminal.status === nextProps.terminal.status &&
+    prevProps.isActive === nextProps.isActive &&
+    prevProps.terminal.agent?.type === nextProps.terminal.agent?.type &&
+    prevProps.terminal.agent?.enabled === nextProps.terminal.agent?.enabled
+  );
+});
 
 const styles: Record<string, React.CSSProperties> = {
   dragOverlay: {

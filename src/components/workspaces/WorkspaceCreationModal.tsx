@@ -116,6 +116,16 @@ export const WorkspaceCreationModal: React.FC<WorkspaceCreationModalProps> = ({
   const [draggedAgent, setDraggedAgent] = useState<AgentType | null>(null);
 
   const stepRef = useRef<HTMLDivElement>(null);
+  const spawnTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear spawn timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (spawnTimeoutRef.current) {
+        clearTimeout(spawnTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Early return if not open - prevents rendering when closed
   if (!isOpen) return null;
@@ -485,7 +495,8 @@ export const WorkspaceCreationModal: React.FC<WorkspaceCreationModalProps> = ({
       setCurrentWorkspace(workspace);
 
       // Auto-spawn all terminals after a short delay
-      setTimeout(async () => {
+      if (spawnTimeoutRef.current) clearTimeout(spawnTimeoutRef.current);
+      spawnTimeoutRef.current = setTimeout(async () => {
         if (window.electronAPI) {
           try {
             const spawnResults = [];

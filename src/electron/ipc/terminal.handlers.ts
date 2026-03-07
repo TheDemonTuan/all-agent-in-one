@@ -71,6 +71,45 @@ const terminalProcesses = new Map<string, {
 // Track workspace -> terminals mapping
 const terminalWorkspaceMap = new Map<string, string>();
 
+// Data batching for terminal output (VAL-PERF-006: Reduce IPC overhead)
+// Batch terminal data to reduce IPC call frequency
+const dataBatchTimers = new Map<string, NodeJS.Timeout>();
+const dataBuffers = new Map<string, { data: string; timestamp: number }[]>();
+const BATCH_INTERVAL = 8; // ms - balance between latency and throughput
+
+/**
+ * Batch terminal data and send via IPC at intervals
+ * This reduces IPC call overhead when terminal outputs大量 data
+ * Note: mainWindow is passed as parameter since this function is called from within initializeTerminalHandlers
+ */
+function sendTerminalData(id: string, data: string, mainWindow: BrowserWindow | null) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  // Initialize buffer for this terminal if needed
+  if (!dataBuffers.has(id)) {
+    dataBuffers.set(id, []);
+  }
+  const buffer = dataBuffers.get(id)!;
+  buffer.push({ data, timestamp: Date.now() });
+
+  // Clear existing timer
+  if (dataBatchTimers.has(id)) {
+    clearTimeout(dataBatchTimers.get(id)!);
+  }
+
+  // Schedule batch send
+  dataBatchTimers.set(id, setTimeout(() => {
+    const batchedData = dataBuffers.get(id);
+    if (batchedData && batchedData.length > 0) {
+      // Concatenate all buffered data into single IPC call
+      const concatenated = batchedData.map(d => d.data).join('');
+      mainWindow!.webContents.send(IPC_CHANNELS.TERMINAL_DATA, { id, data: concatenated });
+      dataBuffers.delete(id);
+    }
+    dataBatchTimers.delete(id);
+  }, BATCH_INTERVAL));
+}
+
 // Prevent concurrent patch operations
 let isPatching = false;
 
@@ -299,16 +338,27 @@ export function initializeTerminalHandlers(mainWindow: BrowserWindow | null, sto
         }
       }, 300);
 
+      // Use batching for terminal data to reduce IPC overhead (VAL-PERF-006)
       ptyProcess.onData((data: string) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.TERMINAL_DATA, { id, data });
-        }
+        sendTerminalData(id, data, mainWindow);
       });
 
       ptyProcess.onExit(({ exitCode, signal }) => {
         log.info('Terminal exited', { id, exitCode, signal });
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(IPC_CHANNELS.TERMINAL_EXIT, { id, code: exitCode, signal });
+        }
+        // Cleanup batch timer and buffer on exit
+        if (dataBatchTimers.has(id)) {
+          clearTimeout(dataBatchTimers.get(id)!);
+          dataBatchTimers.delete(id);
+        }
+        // Flush any remaining buffered data before cleanup
+        const remainingData = dataBuffers.get(id);
+        if (remainingData && remainingData.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
+          const concatenated = remainingData.map(d => d.data).join('');
+          mainWindow.webContents.send(IPC_CHANNELS.TERMINAL_DATA, { id, data: concatenated });
+          dataBuffers.delete(id);
         }
         terminalProcesses.delete(id);
         terminalWorkspaceMap.delete(id);
@@ -340,6 +390,18 @@ export function initializeTerminalHandlers(mainWindow: BrowserWindow | null, sto
         // Use Windows process tree killing (VAL-PERF-003)
         const killed = killPtyProcess(term.ptyProcess);
         if (killed) {
+          // Cleanup batch timer and buffer
+          if (dataBatchTimers.has(id)) {
+            clearTimeout(dataBatchTimers.get(id)!);
+            dataBatchTimers.delete(id);
+          }
+          // Flush any remaining buffered data
+          const remainingData = dataBuffers.get(id);
+          if (remainingData && remainingData.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
+            const concatenated = remainingData.map(d => d.data).join('');
+            mainWindow.webContents.send(IPC_CHANNELS.TERMINAL_DATA, { id, data: concatenated });
+            dataBuffers.delete(id);
+          }
           terminalProcesses.delete(id);
           terminalWorkspaceMap.delete(id);
           log.info('Terminal killed', { id });
@@ -493,15 +555,25 @@ export function initializeTerminalHandlers(mainWindow: BrowserWindow | null, sto
       }, 100);
 
       ptyProcess.onData((data: string) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(IPC_CHANNELS.TERMINAL_DATA, { id, data });
-        }
+        sendTerminalData(id, data, mainWindow);
       });
 
       ptyProcess.onExit(({ exitCode, signal }) => {
         log.info('Terminal with agent exited', { id, exitCode, signal });
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send(IPC_CHANNELS.TERMINAL_EXIT, { id, code: exitCode, signal });
+        }
+        // Cleanup batch timer and buffer on exit
+        if (dataBatchTimers.has(id)) {
+          clearTimeout(dataBatchTimers.get(id)!);
+          dataBatchTimers.delete(id);
+        }
+        // Flush any remaining buffered data before cleanup
+        const remainingData = dataBuffers.get(id);
+        if (remainingData && remainingData.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
+          const concatenated = remainingData.map(d => d.data).join('');
+          mainWindow.webContents.send(IPC_CHANNELS.TERMINAL_DATA, { id, data: concatenated });
+          dataBuffers.delete(id);
         }
         terminalProcesses.delete(id);
         terminalWorkspaceMap.delete(id);
@@ -516,11 +588,26 @@ export function initializeTerminalHandlers(mainWindow: BrowserWindow | null, sto
 }
 
 // Export cleanup function for app quit
-export function cleanupAllTerminals(isDev: boolean) {
+export function cleanupAllTerminals(isDev: boolean, mainWindow: BrowserWindow | null) {
   log.info('Cleaning up all terminals', { isDev });
-  
+
   const currentPid = process.pid;
   let killCount = 0;
+
+  // Cleanup all batch timers and buffers first
+  dataBatchTimers.forEach((timer, id) => {
+    clearTimeout(timer);
+  });
+  dataBatchTimers.clear();
+
+  // Flush all remaining buffered data
+  dataBuffers.forEach((buffer, id) => {
+    if (buffer.length > 0 && mainWindow && !mainWindow.isDestroyed()) {
+      const concatenated = buffer.map(d => d.data).join('');
+      mainWindow.webContents.send(IPC_CHANNELS.TERMINAL_DATA, { id, data: concatenated });
+    }
+  });
+  dataBuffers.clear();
 
   if (isDev) {
     // In dev mode, skip killing dev terminal

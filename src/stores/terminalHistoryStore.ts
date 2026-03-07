@@ -14,6 +14,7 @@ interface TerminalHistoryState {
   updateCommandBlock: (terminalId: string, blockId: string, updates: Partial<CommandBlockData>) => void;
   deleteCommandBlock: (terminalId: string, blockId: string) => void;
   clearHistory: (terminalId: string) => Promise<void>;
+  removeTerminalHistory: (terminalId: string) => void;
   getHistory: (terminalId: string) => CommandBlockData[];
 }
 
@@ -119,6 +120,14 @@ export const useTerminalHistoryStore = create<TerminalHistoryState>((set, get) =
     } catch (err) {
       console.error('[TerminalHistoryStore] Failed to clear history:', err);
     }
+  },
+
+  removeTerminalHistory: (terminalId) => {
+    set((state) => {
+      const { [terminalId]: _, ...rest } = state.commandBlocks;
+      return { commandBlocks: rest };
+    });
+    console.log('[TerminalHistoryStore] Removed history for terminal:', terminalId);
   },
 
   getHistory: (terminalId) => {

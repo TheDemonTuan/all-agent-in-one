@@ -179,7 +179,10 @@ function App() {
     getTerminalByIndex,
     setCurrentWorkspace,
     setActiveTerminal,
-    setWorkspaceModalOpen
+    setWorkspaceModalOpen,
+    setSettingsModalOpen,
+    workspaces,
+    workspace
   ]);
 
   const handleSelectWorkspace = (workspaceId: string) => {

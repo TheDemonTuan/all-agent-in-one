@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AgentInstallGuide } from '../agents/AgentInstallGuide';
 
 interface SettingsModalProps {
@@ -50,6 +50,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const [isPatching, setIsPatching] = useState(false);
   const [patchMessage, setPatchMessage] = useState<string | null>(null);
   const [isAgentGuideOpen, setIsAgentGuideOpen] = useState(false);
+  const patchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clear patch message timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (patchTimeoutRef.current) {
+        clearTimeout(patchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Load Vietnamese IME settings on mount
   useEffect(() => {
@@ -96,7 +106,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setPatchMessage(`✗ ${err.message}`);
     } finally {
       setIsPatching(false);
-      setTimeout(() => setPatchMessage(null), 6000);
+      if (patchTimeoutRef.current) clearTimeout(patchTimeoutRef.current);
+      patchTimeoutRef.current = setTimeout(() => setPatchMessage(null), 6000);
     }
   };
 
@@ -111,7 +122,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       setPatchMessage(`✗ ${err.message}`);
     } finally {
       setIsPatching(false);
-      setTimeout(() => setPatchMessage(null), 5000);
+      if (patchTimeoutRef.current) clearTimeout(patchTimeoutRef.current);
+      patchTimeoutRef.current = setTimeout(() => setPatchMessage(null), 5000);
     }
   };
 

@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { Terminal } from '@xterm/xterm';
+import { Terminal, ITerminalOptions } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { WebglAddon } from '@xterm/addon-webgl';
 import '@xterm/xterm/css/xterm.css';
 
 export interface UseTerminalOptions {
@@ -10,46 +9,51 @@ export interface UseTerminalOptions {
   onWrite?: (data: string) => void;
 }
 
+// Optimized terminal options for better performance (VAL-PERF-008)
+const OPTIMIZED_OPTIONS: ITerminalOptions = {
+  cursorBlink: true,
+  fontSize: 14,
+  fontFamily: '"Cascadia Code", "Fira Code", Consolas, "Courier New", monospace',
+  theme: {
+    background: '#1e1e2e',
+    foreground: '#cdd6f4',
+    cursor: '#f5e0dc',
+    black: '#45475a',
+    red: '#f38ba8',
+    green: '#a6e3a1',
+    yellow: '#f9e2af',
+    blue: '#89b4fa',
+    magenta: '#f5c2e7',
+    cyan: '#94e2d5',
+    white: '#bac2de',
+  },
+  allowProposedApi: true,
+  // Configure scrollback buffer to prevent memory bloat (VAL-PERF-002)
+  scrollback: 1000, // Limit to 1000 lines for optimal memory usage
+
+  // Performance optimizations (VAL-PERF-008)
+  drawBoldTextInBrightColors: true,
+  minimumContrastRatio: 1, // Skip contrast recalculation for performance
+};
+
 export function useTerminal(
   containerRef: React.RefObject<HTMLDivElement>,
   options: UseTerminalOptions = {}
 ) {
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const terminal = new Terminal({
-      cursorBlink: true,
-      fontSize: 14,
-      fontFamily: '"Cascadia Code", "Fira Code", Consolas, "Courier New", monospace',
-      theme: {
-        background: '#1e1e2e',
-        foreground: '#cdd6f4',
-        cursor: '#f5e0dc',
-        black: '#45475a',
-        red: '#f38ba8',
-        green: '#a6e3a1',
-        yellow: '#f9e2af',
-        blue: '#89b4fa',
-        magenta: '#f5c2e7',
-        cyan: '#94e2d5',
-        white: '#bac2de',
-      },
-      allowProposedApi: true,
-      // Configure scrollback buffer to prevent memory bloat (VAL-PERF-002)
-      scrollback: 1000, // Limit to 1000 lines for optimal memory usage
-    });
+    const terminal = new Terminal(OPTIMIZED_OPTIONS);
 
     const fitAddon = new FitAddon();
     const webLinksAddon = new WebLinksAddon();
-    const webglAddon = new WebglAddon();
 
+    // Use canvas rendering only - WebGL causes issues on many systems
     terminal.loadAddon(fitAddon);
     terminal.loadAddon(webLinksAddon);
-    terminal.loadAddon(webglAddon);
 
     terminal.open(containerRef.current);
     fitAddon.fit();
@@ -57,49 +61,27 @@ export function useTerminal(
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
 
-    // Create ResizeObserver once and store in ref - prevents leak on remount
-    if (!resizeObserverRef.current) {
-      resizeObserverRef.current = new ResizeObserver(() => {
-        if (fitAddonRef.current && terminalRef.current) {
-          fitAddonRef.current.fit();
-        }
-      });
-    }
-    resizeObserverRef.current.observe(containerRef.current);
+    // Create ResizeObserver per instance and clean up on unmount
+    const resizeObserver = new ResizeObserver(() => {
+      if (fitAddonRef.current && terminalRef.current) {
+        // Use requestAnimationFrame for smoother resize (VAL-PERF-008)
+        requestAnimationFrame(() => {
+          fitAddonRef.current?.fit();
+        });
+      }
+    });
+    resizeObserver.observe(containerRef.current);
 
     return () => {
-      // Disconnect resize observer but don't destroy it - reuse on remount
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
-      }
-      // Dispose WebGL addon explicitly before terminal disposal (VAL-PERF-004)
-      webglAddon.dispose();
+      // Disconnect ResizeObserver on unmount
+      resizeObserver.disconnect();
       // Dispose terminal - this will also dispose all other addons
       terminal.dispose();
     };
   }, []);
 
-  const write = (data: string) => {
-    terminalRef.current?.write(data);
-  };
-
-  const sendData = (data: string) => {
-    terminalRef.current?.input(data);
-  };
-
-  const focus = () => {
-    terminalRef.current?.focus();
-  };
-
-  const clear = () => {
-    terminalRef.current?.clear();
-  };
-
   return {
     terminal: terminalRef.current,
-    write,
-    sendData,
-    focus,
-    clear,
+    fitAddon: fitAddonRef.current,
   };
 }

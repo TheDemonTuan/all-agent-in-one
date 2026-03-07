@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { WorkspaceState, WorkspaceLayout, TerminalPane, WorkspaceCreationConfig, AgentConfig } from '../types/workspace';
+import { useTerminalHistoryStore } from './terminalHistoryStore';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -72,16 +73,33 @@ const createDefaultWorkspace = (config: WorkspaceCreationConfig): WorkspaceLayou
 const WORKSPACES_STORAGE_KEY = 'workspaces';
 
 // Debounce helper - prevents rapid successive storage writes
-let saveDebounceTimer: NodeJS.Timeout | null = null;
-const debounceSave = (fn: () => Promise<void>, delay: number) => {
-  if (saveDebounceTimer) {
-    clearTimeout(saveDebounceTimer);
-  }
-  saveDebounceTimer = setTimeout(fn, delay);
+// Using a closure to track timer per-store-instance instead of global
+const createDebounceSave = () => {
+  let saveDebounceTimer: NodeJS.Timeout | null = null;
+
+  const debounceSave = (fn: () => Promise<void>, delay: number) => {
+    if (saveDebounceTimer) {
+      clearTimeout(saveDebounceTimer);
+    }
+    saveDebounceTimer = setTimeout(fn, delay);
+  };
+
+  // Expose clear method for cleanup on unmount
+  debounceSave.clear = () => {
+    if (saveDebounceTimer) {
+      clearTimeout(saveDebounceTimer);
+      saveDebounceTimer = null;
+    }
+  };
+
+  return debounceSave;
 };
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   console.log('[WorkspaceStore] Initializing...');
+
+  // Create instance-specific debounce save to prevent global timer leaks
+  const debounceSave = createDebounceSave();
 
   const initialState = {
     currentWorkspace: null,
@@ -402,6 +420,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
       // Remove terminal from list
       const updatedTerminals = terminals.filter(t => t.id !== terminalId);
+
+      // Clean up terminal history to prevent memory leaks
+      useTerminalHistoryStore.getState().removeTerminalHistory(terminalId);
       
       // Calculate new grid dimensions
       const totalTerminals = updatedTerminals.length;
@@ -622,6 +643,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           useWorkspaceStore.getState().updateTerminalStatus(terminalId, 'error');
         }
       }
+    },
+
+    /**
+     * Cleanup method to clear pending debounce timers
+     * Should be called on app quit to prevent memory leaks
+     */
+    _cleanupDebounceTimers: () => {
+      debounceSave.clear();
     },
   };
 });
