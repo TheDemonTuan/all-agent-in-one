@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { WorkspaceState, WorkspaceLayout, TerminalPane, WorkspaceCreationConfig, AgentConfig } from '../types/workspace';
+import { WorkspaceState, WorkspaceLayout, TerminalPane, WorkspaceCreationConfig, AgentConfig, AgentType } from '../types/workspace';
 import { useTerminalHistoryStore } from './terminalHistoryStore';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -633,6 +633,70 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
           }
         } catch (err) {
           console.error('[WorkspaceStore] Failed to restart terminal:', err);
+          useWorkspaceStore.getState().updateTerminalStatus(terminalId, 'error');
+        }
+      }
+    },
+
+    switchTerminalAgent: async (terminalId: string, newAgentType: string) => {
+      const state = get();
+      if (!state.currentWorkspace) return;
+
+      const terminal = state.currentWorkspace.terminals.find(t => t.id === terminalId);
+      if (!terminal) return;
+
+      console.log('[WorkspaceStore] Switching agent for terminal:', terminalId, 'to:', newAgentType);
+
+      // Create new agent config
+      const agentConfig = newAgentType === 'none' || newAgentType === ''
+        ? { type: 'none' as const, enabled: false }
+        : { type: newAgentType as AgentType, enabled: true };
+
+      // Update agent config in store
+      useWorkspaceStore.getState().updateTerminalAgent(terminalId, agentConfig);
+
+      // Kill existing terminal process
+      if (typeof window !== 'undefined' && (window as any).electronAPI) {
+        try {
+          await (window as any).electronAPI.terminalKill(terminalId);
+          console.log('[WorkspaceStore] Killed terminal process for agent switch:', terminalId);
+        } catch (err) {
+          console.error('[WorkspaceStore] Failed to kill terminal for agent switch:', err);
+        }
+
+        // Update status to stopped
+        useWorkspaceStore.getState().updateTerminalStatus(terminalId, 'stopped');
+
+        // Small delay to ensure process is fully killed
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Spawn new terminal with new agent config
+        try {
+          let result;
+          if (agentConfig.enabled && agentConfig.type !== 'none') {
+            result = await (window as any).electronAPI.spawnTerminalWithAgent(
+              terminalId,
+              terminal.cwd,
+              agentConfig,
+              state.currentWorkspace.id
+            );
+          } else {
+            result = await (window as any).electronAPI.spawnTerminal(
+              terminalId,
+              terminal.cwd,
+              state.currentWorkspace.id
+            );
+          }
+
+          if (result.success) {
+            console.log('[WorkspaceStore] Terminal agent switched successfully:', terminalId);
+            useWorkspaceStore.getState().updateTerminalStatus(terminalId, 'running');
+            if (result.pid) {
+              useWorkspaceStore.getState().setTerminalProcessId(terminalId, result.pid);
+            }
+          }
+        } catch (err) {
+          console.error('[WorkspaceStore] Failed to switch terminal agent:', err);
           useWorkspaceStore.getState().updateTerminalStatus(terminalId, 'error');
         }
       }

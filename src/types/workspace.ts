@@ -106,6 +106,7 @@ export interface WorkspaceState {
   removeTerminal: (terminalId: string) => void;
   splitTerminal: (terminalId: string, direction: 'horizontal' | 'vertical') => void;
   restartTerminal: (terminalId: string) => void;
+  switchTerminalAgent: (terminalId: string, newAgentType: string) => Promise<void>;
 
   // Persistence
   loadWorkspaces: () => void;

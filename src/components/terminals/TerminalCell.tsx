@@ -106,7 +106,7 @@ export const TerminalCell = React.memo<TerminalCellProps>(({
   const dataBufferRef = useRef<string[]>([]);
   const isInitialFitCompleteRef = useRef(false);
 
-  const { restartTerminal, getNextWorkspace, getPreviousWorkspace, setCurrentWorkspace } = useWorkspaceStore();
+  const { restartTerminal, getNextWorkspace, getPreviousWorkspace, setCurrentWorkspace, switchTerminalAgent } = useWorkspaceStore();
 
   const listenersRef = useRef<{
     unsubscribeData?: () => void;
@@ -230,8 +230,48 @@ export const TerminalCell = React.memo<TerminalCellProps>(({
       case 'remove-terminal':
         onClose?.();
         break;
+      // Agent switch actions
+      case 'switch-agent-claude-code':
+        switchTerminalAgent(terminal.id, 'claude-code');
+        break;
+      case 'switch-agent-opencode':
+        switchTerminalAgent(terminal.id, 'opencode');
+        break;
+      case 'switch-agent-droid':
+        switchTerminalAgent(terminal.id, 'droid');
+        break;
+      case 'switch-agent-gemini-cli':
+        switchTerminalAgent(terminal.id, 'gemini-cli');
+        break;
+      case 'switch-agent-cursor':
+        switchTerminalAgent(terminal.id, 'cursor');
+        break;
+      case 'switch-agent-codex':
+        switchTerminalAgent(terminal.id, 'codex');
+        break;
+      case 'switch-agent-oh-my-pi':
+        switchTerminalAgent(terminal.id, 'oh-my-pi');
+        break;
+      case 'switch-agent-aider':
+        switchTerminalAgent(terminal.id, 'aider');
+        break;
+      case 'switch-agent-goose':
+        switchTerminalAgent(terminal.id, 'goose');
+        break;
+      case 'switch-agent-warp':
+        switchTerminalAgent(terminal.id, 'warp');
+        break;
+      case 'switch-agent-amp':
+        switchTerminalAgent(terminal.id, 'amp');
+        break;
+      case 'switch-agent-kiro':
+        switchTerminalAgent(terminal.id, 'kiro');
+        break;
+      case 'switch-agent-none':
+        switchTerminalAgent(terminal.id, 'none');
+        break;
     }
-  }, [onSplit, onClose, terminal.id, restartTerminal, currentWorkspace]);
+  }, [onSplit, onClose, terminal.id, restartTerminal, currentWorkspace, switchTerminalAgent]);
 
   const handleScrollToBottom = useCallback(() => {
     if (terminalRef.current) {
@@ -962,6 +1002,7 @@ export const TerminalCell = React.memo<TerminalCellProps>(({
           y={contextMenu.y}
           onClose={() => setContextMenu({ ...contextMenu, visible: false })}
           onAction={handleContextAction}
+          currentAgentType={terminal.agent?.type}
         />
       )}
 
