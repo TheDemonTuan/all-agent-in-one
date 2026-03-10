@@ -8,4 +8,4 @@ export type { WorkspaceState, WorkspaceLayout, TerminalPane as WorkspaceTerminal
 export type { TerminalPane, TerminalStatus, TerminalProcess, TerminalDataEvent, TerminalExitEvent, TerminalResizeOptions, TerminalSpawnOptions } from './terminal';
 export type { AgentConfig, AgentSpawnOptions, AgentState } from './agent';
 export type * from './ipc';
-export type { ElectronAPI } from './electron';
+export type { ElectronAPI } from './backend';
