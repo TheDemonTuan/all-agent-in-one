@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -19,6 +20,12 @@ import (
 // TerminalService — manages all PTY processes
 // ============================================================================
 
+// pendingEvent represents an event waiting to be emitted when context becomes available.
+type pendingEvent struct {
+	eventName string
+	payload   interface{}
+}
+
 // ptyProcess wraps a PTY with its associated metadata.
 type ptyProcess struct {
 	id         string
@@ -30,21 +37,75 @@ type ptyProcess struct {
 
 // TerminalService manages all PTY processes.
 type TerminalService struct {
-	Ctx       context.Context // Set by App.startup()
-	mu        sync.RWMutex
-	processes map[string]*ptyProcess
+	Ctx           context.Context // Set by App.startup()
+	mu            sync.RWMutex
+	processes     map[string]*ptyProcess
+	pendingEvents []pendingEvent  // Queue for events when context is nil
+	eventsMu      sync.Mutex      // Protects pendingEvents
 }
 
 // NewTerminalService creates a new TerminalService.
 func NewTerminalService() *TerminalService {
 	return &TerminalService{
-		processes: make(map[string]*ptyProcess),
+		processes:     make(map[string]*ptyProcess),
+		pendingEvents: make([]pendingEvent, 0),
 	}
 }
 
 // getCtx returns the current Wails context (may be nil before startup).
 func (t *TerminalService) getCtx() context.Context {
 	return t.Ctx
+}
+
+// emitEvent emits an event or queues it if context is not yet available.
+func (t *TerminalService) emitEvent(eventName string, payload map[string]interface{}) {
+	t.eventsMu.Lock()
+	defer t.eventsMu.Unlock()
+
+	ctx := t.getCtx()
+	if ctx != nil {
+		wailsruntime.EventsEmit(ctx, eventName, payload)
+	} else {
+		// Queue the event for later emission when context becomes available
+		t.pendingEvents = append(t.pendingEvents, pendingEvent{
+			eventName: eventName,
+			payload:   payload,
+		})
+		log.Printf("[WARN] Context is nil, queuing event %s for later emission", eventName)
+	}
+}
+
+// flushPendingEvents emits all queued events once context is available.
+// Must be called with eventsMu held or from a context where race is not possible.
+func (t *TerminalService) flushPendingEvents() {
+	t.eventsMu.Lock()
+	defer t.eventsMu.Unlock()
+
+	ctx := t.getCtx()
+	if ctx == nil {
+		log.Printf("[WARN] flushPendingEvents called but context is still nil")
+		return
+	}
+
+	for _, event := range t.pendingEvents {
+		wailsruntime.EventsEmit(ctx, event.eventName, event.payload)
+		log.Printf("[INFO] Flushed pending event: %s", event.eventName)
+	}
+	t.pendingEvents = make([]pendingEvent, 0)
+	log.Printf("[INFO] Flushed %d pending events", len(t.pendingEvents))
+}
+
+// SetContext sets the Wails context and flushes any pending events.
+// Called by App.startup() when the application context is ready.
+func (t *TerminalService) SetContext(ctx context.Context) {
+	t.eventsMu.Lock()
+	t.Ctx = ctx
+	hasPending := len(t.pendingEvents) > 0
+	t.eventsMu.Unlock()
+
+	if hasPending {
+		t.flushPendingEvents()
+	}
 }
 
 // ============================================================================
@@ -97,13 +158,11 @@ func (t *TerminalService) SpawnTerminal(opts SpawnTerminalOptions) SpawnResult {
 	t.processes[opts.ID] = proc
 	t.mu.Unlock()
 
-	// Emit terminal-started event
-	if ctx := t.getCtx(); ctx != nil {
-		wailsruntime.EventsEmit(ctx, "terminal-started", map[string]interface{}{
-			"terminalId": opts.ID,
-			"pid":        handle.Pid,
-		})
-	}
+	// Emit terminal-started event (queued if context not yet available)
+	t.emitEvent("terminal-started", map[string]interface{}{
+		"terminalId": opts.ID,
+		"pid":        handle.Pid,
+	})
 
 	go t.readPTYOutput(ctx, proc)
 	go t.watchProcessExitByPTY(proc)
@@ -190,13 +249,11 @@ func (t *TerminalService) SpawnTerminalWithAgent(opts SpawnAgentOptions) SpawnRe
 	t.processes[opts.ID] = proc
 	t.mu.Unlock()
 
-	// Emit terminal-started event
-	if ctx := t.getCtx(); ctx != nil {
-		wailsruntime.EventsEmit(ctx, "terminal-started", map[string]interface{}{
-			"terminalId": opts.ID,
-			"pid":        handle.Pid,
-		})
-	}
+	// Emit terminal-started event (queued if context not yet available)
+	t.emitEvent("terminal-started", map[string]interface{}{
+		"terminalId": opts.ID,
+		"pid":        handle.Pid,
+	})
 
 	go t.readPTYOutput(ctx, proc)
 	go t.watchProcessExitByPTY(proc)
@@ -382,12 +439,11 @@ func (t *TerminalService) watchProcessExitByPTY(proc *ptyProcess) {
 	delete(t.processes, proc.id)
 	t.mu.Unlock()
 
-	if ctx := t.getCtx(); ctx != nil {
-		wailsruntime.EventsEmit(ctx, "terminal-exit", map[string]interface{}{
-			"terminalId": proc.id,
-			"exitCode":   exitCode,
-		})
-	}
+	// Emit terminal-exit event (queued if context not yet available)
+	t.emitEvent("terminal-exit", map[string]interface{}{
+		"terminalId": proc.id,
+		"exitCode":   exitCode,
+	})
 }
 
 // ============================================================================

@@ -33,8 +33,9 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
 	// Pass context to services that need to emit events
+	// Use SetContext for TerminalService to flush any pending events
 	if a.terminalSvc != nil {
-		a.terminalSvc.Ctx = ctx
+		a.terminalSvc.SetContext(ctx)
 	}
 	if a.systemSvc != nil {
 		a.systemSvc.Ctx = ctx
@@ -121,7 +122,7 @@ func (a *App) SpawnTerminal(id string, cwd string, workspaceId string) map[strin
 	result := a.terminalSvc.SpawnTerminal(services.SpawnTerminalOptions{
 		ID:  id,
 		CWD: cwd,
-		
+
 	})
 	return map[string]interface{}{
 		"success": result.Success,
