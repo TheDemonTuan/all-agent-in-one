@@ -59,6 +59,7 @@ COPYING
 .claude/
 .cursor/
 .serena/
+.factory/
 
 # Build artifacts
 build/
