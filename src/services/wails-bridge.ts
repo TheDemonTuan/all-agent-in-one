@@ -2,7 +2,7 @@
  * Wails Bridge
  *
  * Adapter layer that maps frontend calls to Go backend via Wails runtime bindings.
- * Replaces electron's preload.cjs / window.electronAPI.
+ * Replaces the old preload.cjs / window.electronAPI pattern.
  *
  * Wails auto-generates TypeScript bindings from Go exported methods.
  * They are available at: window.go.<PackageName>.<StructName>.<MethodName>()
@@ -340,8 +340,9 @@ export const backendAPI: BackendAPI = isWailsAvailable()
   ? createWailsBridge()
   : createStubBridge();
 
-// Also expose on window for legacy code that does `window.electronAPI`
-// Use Object.defineProperty in case the property was declared read-only (e.g. by Wails preload)
+// Backward compatibility: expose backendAPI as window.electronAPI
+// This allows legacy code that uses window.electronAPI to continue working.
+// Use Object.defineProperty in case the property was declared read-only.
 if (typeof window !== 'undefined') {
   try {
     Object.defineProperty(window, 'electronAPI', {

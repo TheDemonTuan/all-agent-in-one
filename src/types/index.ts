@@ -41,5 +41,8 @@ export type {
   OpenDialogReturnValue,
 } from './backend';
 
-// Legacy exports (deprecated - use specific imports instead)
-export type { ElectronAPI } from './electron';
+// Re-export BackendAPI as the primary API interface
+export type { BackendAPI } from '../services/wails-bridge';
+
+// Legacy exports (deprecated - use BackendAPI from wails-bridge instead)
+export type { ElectronAPI } from './backend-legacy';

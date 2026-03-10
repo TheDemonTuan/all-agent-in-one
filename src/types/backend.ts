@@ -1,6 +1,6 @@
 /**
  * Shared backend API types.
- * This file has NO dependency on wails-bridge.ts or electron.d.ts
+ * This file has NO dependency on wails-bridge.ts or backend-legacy.ts
  * to avoid circular imports.
  */
 

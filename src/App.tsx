@@ -40,7 +40,7 @@ function App() {
     initializePlatformInfo();
   }, []);
 
-  // Load workspaces from electron-store on mount (only once)
+  // Load workspaces from store on mount (only once)
   useEffect(() => {
     loadWorkspaces();
   }, []);
