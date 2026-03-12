@@ -54,6 +54,8 @@ frontend/.env.*.local
 # Wails generated files
 wailsjs/
 bindings/
+frontend/wailsjs/
+frontend/bindings/
 
 # Task cache
 .task/
