@@ -42,13 +42,18 @@ tasks:
       - task: common:generate:icons
     cmds:
       - task: generate:syso
+      # Build Go binary with optimized flags from config.yml
       - go build {{.BUILD_FLAGS}} -o "{{.BIN_DIR}}/{{.APP_NAME}}.exe"
       - cmd: powershell Remove-item *.syso
         platforms: [windows]
       - cmd: rm -f *.syso
         platforms: [linux, darwin]
+      # UPX compression (external tool, optional)
+      - cmd: powershell -Command "if (Test-Path '..\..\upx.exe') { ..\..\upx.exe --best '{{.BIN_DIR}}/{{.APP_NAME}}.exe' } elseif (Test-Path 'upx.exe') { .\upx.exe --best '{{.BIN_DIR}}/{{.APP_NAME}}.exe' } else { Write-Host '[!] UPX not found, skipping...' }"
+        platforms: [windows]
     vars:
-      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if .EXTRA_TAGS}}-tags {{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui"{{end}}'
+      # Production build flags - optimized for size and security
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if .EXTRA_TAGS}}-tags {{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-trimpath -buildvcs=false -ldflags="-s -w -H windowsgui -buildmode=pie -extldflags=-static"{{if .EXTRA_TAGS}} -tags {{.EXTRA_TAGS}}{{end}}{{end}}'
     env:
       GOOS: windows
       CGO_ENABLED: '{{.CGO_ENABLED | default "0"}}'
@@ -153,7 +158,7 @@ tasks:
 
   run:
     cmds:
-      - '{{.BIN_DIR}}/{{.APP_NAME}}.exe'
+      - '"{{.BIN_DIR}}/{{.APP_NAME}}.exe"'
 
   sign:
     summary: Signs the Windows executable

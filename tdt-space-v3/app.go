@@ -20,6 +20,7 @@ type App struct {
 	templateSvc      *services.TemplateService
 	terminalHistorySvc *services.TerminalHistoryService
 	vietnameseIMESvc *services.VietnameseIMEService
+	app              *application.App
 }
 
 // NewApp creates a new App with required services.
@@ -46,8 +47,11 @@ func NewApp(
 // ServiceStartup is called when the app starts. The context is saved here.
 // This is a Wails v3 Service lifecycle method.
 func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOptions) error {
-	// Pass application to services that need to emit events
+	// Get application instance using the global getter
 	app := application.Get()
+	a.app = app
+	
+	// Pass application to services that need to emit events
 	a.terminalSvc.SetApplication(app)
 	a.systemSvc.SetApplication(app)
 
@@ -57,19 +61,22 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 // ServiceShutdown is called when the app shuts down.
 // This is a Wails v3 Service lifecycle method.
 func (a *App) ServiceShutdown() error {
-	// Close the store
+	// 1. Cleanup all terminals first to prevent orphaned processes
+	if a.terminalSvc != nil {
+		a.terminalSvc.CleanupAllTerminals()
+	}
+
+	// 2. Then close the store to ensure all data is persisted
 	if a.storeSvc != nil {
 		a.storeSvc.Close()
 	}
+
 	return nil
 }
 
 // OnBeforeClose is called before the window is closed, returning true will prevent close.
 func (a *App) OnBeforeClose() bool {
-	// Cleanup all terminals on close
-	if a.terminalSvc != nil {
-		a.terminalSvc.CleanupAllTerminals()
-	}
+	// Cleanup is handled by ServiceShutdown
 	return false
 }
 
@@ -79,15 +86,14 @@ func (a *App) OnBeforeClose() bool {
 
 // WindowMinimize minimizes the window.
 func (a *App) WindowMinimize() {
-	if win := application.Get().Window.Current(); win != nil {
+	if win := a.app.Window.Current(); win != nil {
 		win.Minimise()
 	}
 }
 
 // WindowMaximize toggles maximize state.
 func (a *App) WindowMaximize() {
-	app := application.Get()
-	if win := app.Window.Current(); win != nil {
+	if win := a.app.Window.Current(); win != nil {
 		if win.IsMaximised() {
 			win.UnMaximise()
 		} else {
@@ -98,12 +104,12 @@ func (a *App) WindowMaximize() {
 
 // WindowClose closes the app.
 func (a *App) WindowClose() {
-	application.Get().Quit()
+	a.app.Quit()
 }
 
 // WindowIsMaximized returns whether the window is maximized.
 func (a *App) WindowIsMaximized() bool {
-	if win := application.Get().Window.Current(); win != nil {
+	if win := a.app.Window.Current(); win != nil {
 		return win.IsMaximised()
 	}
 	return false
@@ -311,25 +317,25 @@ func buildMenu(app *App) *application.Menu {
 
 	fileMenu := appMenu.AddSubmenu("File")
 	fileMenu.Add("New Workspace").SetAccelerator("Ctrl+N").OnClick(func(ctx *application.Context) {
-		application.Get().Event.Emit("menu:new-workspace")
+		app.app.Event.Emit("menu:new-workspace")
 	})
 	fileMenu.AddSeparator()
 	fileMenu.Add("Settings").SetAccelerator("Ctrl+,").OnClick(func(ctx *application.Context) {
-		application.Get().Event.Emit("menu:open-settings")
+		app.app.Event.Emit("menu:open-settings")
 	})
 	fileMenu.AddSeparator()
 	fileMenu.Add("Quit").SetAccelerator("Ctrl+Q").OnClick(func(ctx *application.Context) {
-		application.Get().Quit()
+		app.app.Quit()
 	})
 
 	viewMenu := appMenu.AddSubmenu("View")
 	viewMenu.Add("Toggle Fullscreen").SetAccelerator("F11").OnClick(func(ctx *application.Context) {
-		application.Get().Event.Emit("menu:toggle-fullscreen")
+		app.app.Event.Emit("menu:toggle-fullscreen")
 	})
 
 	helpMenu := appMenu.AddSubmenu("Help")
 	helpMenu.Add("About TDT Space").OnClick(func(ctx *application.Context) {
-		application.Get().Event.Emit("menu:about")
+		app.app.Event.Emit("menu:about")
 	})
 
 	return appMenu

@@ -50,9 +50,13 @@ tasks:
       - task: common:generate:icons
       - task: generate:dotdesktop
     cmds:
+      # Build Go binary with optimized flags from config.yml
       - go build {{.BUILD_FLAGS}} -o {{.OUTPUT}}
+      # UPX compression (external tool, optional)
+      - cmd: upx --best {{.OUTPUT}} || echo "[!] UPX not available, skipping compression"
     vars:
-      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if .EXTRA_TAGS}}-tags {{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s"{{end}}'
+      # Production build flags - optimized for size and security
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if .EXTRA_TAGS}}-tags {{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-trimpath -buildvcs=false -ldflags="-s -w -buildmode=pie -extldflags=-static"{{if .EXTRA_TAGS}} -tags {{.EXTRA_TAGS}}{{end}}{{end}}'
       DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
       OUTPUT: '{{ .OUTPUT | default .DEFAULT_OUTPUT }}'
     env:

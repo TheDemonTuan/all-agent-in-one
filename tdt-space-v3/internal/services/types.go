@@ -25,20 +25,26 @@ type CleanupResult struct {
 
 // TerminalDataEvent is sent via events when terminal produces output.
 type TerminalDataEvent struct {
-	ID   string `json:"id"`
-	Data string `json:"data"` // base64-encoded bytes
+	TerminalID string `json:"terminalId"`
+	Data       string `json:"data"`
 }
 
 // TerminalExitEvent is sent via events when terminal exits.
 type TerminalExitEvent struct {
-	ID       string `json:"id"`
-	ExitCode int    `json:"exitCode"`
+	TerminalID string `json:"terminalId"`
+	ExitCode   int    `json:"exitCode"`
 }
 
 // TerminalStartedEvent is sent when terminal is ready.
 type TerminalStartedEvent struct {
-	ID  string `json:"id"`
-	PID int    `json:"pid"`
+	TerminalID string `json:"terminalId"`
+	PID        int    `json:"pid"`
+}
+
+// TerminalErrorEvent is sent when terminal encounters an error.
+type TerminalErrorEvent struct {
+	TerminalID string `json:"terminalId"`
+	Error      string `json:"error"`
 }
 
 // ============================================================================
@@ -58,33 +64,36 @@ type AgentConfig struct {
 // WORKSPACE TYPES
 // ============================================================================
 
-// TerminalPane matches src/types/workspace.ts
-type TerminalPane struct {
-	ID          string   `json:"id"`
-	WorkspaceID string   `json:"workspaceId"`
-	AgentType   string   `json:"agentType"`
-	CWD         string   `json:"cwd"`
-	Title       string   `json:"title,omitempty"`
-	Status      string   `json:"status"` // "idle" | "running" | "exited" | "error"
-	Command     string   `json:"command,omitempty"`
-	Args        []string `json:"args,omitempty"`
+// AgentAssignment matches src/types/workspace.ts AgentConfig
+type AgentAssignment struct {
+	Type    string   `json:"type"`
+	Enabled bool     `json:"enabled"`
+	Command string   `json:"command,omitempty"`
+	Args    []string `json:"args,omitempty"`
+	ApiKey  string   `json:"apiKey,omitempty"`
 }
 
-// WorkspaceLayout matches the layout config
-type WorkspaceLayout struct {
-	Rows    int `json:"rows"`
-	Columns int `json:"columns"`
+// TerminalPane matches src/types/workspace.ts
+type TerminalPane struct {
+	ID        string           `json:"id"`
+	CWD       string           `json:"cwd"`
+	Title     string           `json:"title,omitempty"`
+	Shell     string           `json:"shell,omitempty"`
+	Status    string           `json:"status"` // "running" | "stopped" | "error"
+	Agent     *AgentAssignment `json:"agent,omitempty"`
+	ProcessId int              `json:"processId,omitempty"`
 }
 
 // Workspace matches src/types/workspace.ts
 type Workspace struct {
-	ID        string          `json:"id"`
-	Name      string          `json:"name"`
-	CWD       string          `json:"cwd"`
-	Layout    WorkspaceLayout `json:"layout"`
-	Terminals []TerminalPane  `json:"terminals"`
-	CreatedAt int64           `json:"createdAt"`
-	UpdatedAt int64           `json:"updatedAt"`
+	ID        string         `json:"id"`
+	Name      string         `json:"name"`
+	Columns   int            `json:"columns"`
+	Rows      int            `json:"rows"`
+	Terminals []TerminalPane `json:"terminals"`
+	Icon      string         `json:"icon,omitempty"`
+	CreatedAt int64          `json:"createdAt"`
+	LastUsed  int64          `json:"lastUsed"`
 }
 
 // ============================================================================
@@ -93,12 +102,13 @@ type Workspace struct {
 
 // Template matches src/stores/templateStore.ts
 type Template struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`
-	Layout      WorkspaceLayout `json:"layout"`
-	Terminals   []TerminalPane  `json:"terminals"`
-	CreatedAt   int64           `json:"createdAt"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description,omitempty"`
+	Columns     int            `json:"columns"`
+	Rows        int            `json:"rows"`
+	Terminals   []TerminalPane `json:"terminals"`
+	CreatedAt   int64          `json:"createdAt"`
 }
 
 // ============================================================================

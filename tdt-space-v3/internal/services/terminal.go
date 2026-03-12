@@ -42,6 +42,7 @@ type TerminalService struct {
 	processes        map[string]*ptyProcess
 	pendingEvents    []pendingEvent // Queue for events when context is nil
 	eventsMu         sync.Mutex     // Protects pendingEvents
+	shuttingDown     bool           // NEW: flag to indicate shutdown in progress
 
 	// Workspace active state tracking (Option C: Hybrid background optimization)
 	workspaceActiveMu sync.RWMutex
@@ -76,7 +77,7 @@ func (t *TerminalService) getApp() *application.App {
 }
 
 // emitEvent emits an event or queues it if application is not yet available.
-func (t *TerminalService) emitEvent(eventName string, payload map[string]interface{}) {
+func (t *TerminalService) emitEvent(eventName string, payload interface{}) {
 	t.eventsMu.Lock()
 	defer t.eventsMu.Unlock()
 
@@ -152,9 +153,9 @@ func (t *TerminalService) SpawnTerminal(opts SpawnTerminalOptions) SpawnResult {
 	if err != nil {
 		errMsg := err.Error()
 		// Emit error event BEFORE returning so frontend can display error
-		t.emitEvent("terminal-error", map[string]interface{}{
-			"terminalId": opts.ID,
-			"error":      errMsg,
+		t.emitEvent("terminal-error", TerminalErrorEvent{
+			TerminalID: opts.ID,
+			Error:      errMsg,
 		})
 		return SpawnResult{Success: false, Error: errMsg}
 	}
@@ -178,9 +179,9 @@ func (t *TerminalService) SpawnTerminal(opts SpawnTerminalOptions) SpawnResult {
 	t.mu.Unlock()
 
 	// Emit terminal-started event (queued if context not yet available)
-	t.emitEvent("terminal-started", map[string]interface{}{
-		"terminalId": opts.ID,
-		"pid":        handle.Pid,
+	t.emitEvent("terminal-started", TerminalStartedEvent{
+		TerminalID: opts.ID,
+		PID:        handle.Pid,
 	})
 
 	go t.readPTYOutput(ctx, proc)
@@ -232,9 +233,9 @@ func (t *TerminalService) SpawnTerminalWithAgent(opts SpawnAgentOptions) SpawnRe
 		}
 		// Emit error event BEFORE returning so frontend can display error
 		log.Printf("[DEBUG] Emitting terminal-error for %s: %s", opts.ID, errMsg)
-		t.emitEvent("terminal-error", map[string]interface{}{
-			"terminalId": opts.ID,
-			"error":      errMsg,
+		t.emitEvent("terminal-error", TerminalErrorEvent{
+			TerminalID: opts.ID,
+			Error:      errMsg,
 		})
 		return SpawnResult{Success: false, Error: errMsg}
 	}
@@ -260,9 +261,9 @@ func (t *TerminalService) SpawnTerminalWithAgent(opts SpawnAgentOptions) SpawnRe
 		}
 		// Emit error event BEFORE returning so frontend can display error
 		log.Printf("[DEBUG] Emitting terminal-error for %s (PTY error): %s", opts.ID, errMsg)
-		t.emitEvent("terminal-error", map[string]interface{}{
-			"terminalId": opts.ID,
-			"error":      errMsg,
+		t.emitEvent("terminal-error", TerminalErrorEvent{
+			TerminalID: opts.ID,
+			Error:      errMsg,
 		})
 		return SpawnResult{Success: false, Error: errMsg}
 	}
@@ -286,9 +287,9 @@ func (t *TerminalService) SpawnTerminalWithAgent(opts SpawnAgentOptions) SpawnRe
 	t.mu.Unlock()
 
 	// Emit terminal-started event (queued if context not yet available)
-	t.emitEvent("terminal-started", map[string]interface{}{
-		"terminalId": opts.ID,
-		"pid":        handle.Pid,
+	t.emitEvent("terminal-started", TerminalStartedEvent{
+		TerminalID: opts.ID,
+		PID:        handle.Pid,
 	})
 
 	go t.readPTYOutput(ctx, proc)
@@ -347,14 +348,33 @@ func (t *TerminalService) KillTerminal(id string) KillResult {
 // CleanupAllTerminals kills all active PTY processes.
 func (t *TerminalService) CleanupAllTerminals() CleanupResult {
 	t.mu.Lock()
+	t.shuttingDown = true
 	ids := make([]string, 0, len(t.processes))
 	for id := range t.processes {
 		ids = append(ids, id)
 	}
 	t.mu.Unlock()
 
+	// Kill all processes concurrently with overall timeout
+	var wg sync.WaitGroup
 	for _, id := range ids {
-		t.killProcess(id)
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			t.killProcess(id)
+		}(id)
+	}
+
+	// Wait with timeout
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		log.Printf("[WARN] CleanupAllTerminals timed out after 5s")
 	}
 
 	return CleanupResult{Success: true, Cleaned: ids}
@@ -407,6 +427,7 @@ func (t *TerminalService) killProcess(id string) error {
 	if ok {
 		delete(t.processes, id)
 	}
+	shuttingDown := t.shuttingDown // Capture flag value
 	t.mu.Unlock()
 
 	if !ok {
@@ -414,27 +435,30 @@ func (t *TerminalService) killProcess(id string) error {
 	}
 
 	if proc.batcher != nil {
-		proc.batcher.stop()
+		proc.batcher.stop(shuttingDown) // Pass flag to batcher
 	}
 
 	proc.cancelFunc()
 	proc.pty.Close()
 
-	// For Unix, we also have proc.cmd; ConPTY manages its own process.
-	if proc.cmd != nil && proc.cmd.Process != nil {
-		platform.KillProcessTree(proc.cmd.Process.Pid)
+	// Skip KillProcessTree during shutdown - ConPTY Close() handles it
+	if !shuttingDown {
+		// For Unix, we also have proc.cmd; ConPTY manages its own process.
+		if proc.cmd != nil && proc.cmd.Process != nil {
+			platform.KillProcessTree(proc.cmd.Process.Pid)
 
-		done := make(chan struct{})
-		go func() {
-			proc.cmd.Wait()
-			close(done)
-		}()
-		select {
-		case <-done:
-		case <-time.After(3 * time.Second):
+			done := make(chan struct{})
+			go func() {
+				proc.cmd.Wait()
+				close(done)
+			}()
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+			}
+		} else if proc.pty.Pid > 0 {
+			platform.KillProcessTree(proc.pty.Pid)
 		}
-	} else if proc.pty.Pid > 0 {
-		platform.KillProcessTree(proc.pty.Pid)
 	}
 
 	return nil
@@ -464,9 +488,9 @@ func (t *TerminalService) readPTYOutput(ctx context.Context, proc *ptyProcess) {
 			t.mu.Unlock()
 
 			// Emit terminal-exit event (queued if context not yet available)
-			t.emitEvent("terminal-exit", map[string]interface{}{
-				"terminalId": proc.id,
-				"exitCode":   0,
+			t.emitEvent("terminal-exit", TerminalExitEvent{
+				TerminalID: proc.id,
+				ExitCode:   0,
 			})
 			return
 		}

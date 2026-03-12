@@ -1,7 +1,174 @@
-.task
-bin
-frontend/dist
-frontend/node_modules
-frontend/bun.lockb
-build/linux/appimage/build
+# ============================================================================
+# TDT Space v3 - Git Ignore
+# Wails v3 + Go + React + Bun
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Build & Output
+# ----------------------------------------------------------------------------
+# Build output directories
+bin/
+build/linux/appimage/build/
 build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+
+# Compiled binary
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# ----------------------------------------------------------------------------
+# Frontend
+# ----------------------------------------------------------------------------
+# Dependencies
+frontend/node_modules/
+frontend/.pnpm-store/
+
+# Build output
+frontend/dist/
+
+# Lock files (optional - keep one if you want deterministic installs)
+# frontend/bun.lockb
+# frontend/bun.lock
+
+# Logs
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/pnpm-debug.log*
+
+# Local env files
+frontend/.env.local
+frontend/.env.*.local
+
+# ----------------------------------------------------------------------------
+# Wails
+# ----------------------------------------------------------------------------
+# Wails generated files
+wailsjs/
+bindings/
+
+# Task cache
+.task/
+
+# ----------------------------------------------------------------------------
+# IDE & Editors
+# ----------------------------------------------------------------------------
+# VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+*.code-workspace
+
+# GoLand / IntelliJ
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# ----------------------------------------------------------------------------
+# OS Specific
+# ----------------------------------------------------------------------------
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Linux
+.directory
+.Trash-*
+.nfs*
+
+# ----------------------------------------------------------------------------
+# Logs & Temp
+# ----------------------------------------------------------------------------
+*.log
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/
+
+# ----------------------------------------------------------------------------
+# Environment & Secrets
+# ----------------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+*.crt
+secrets/
+credentials/
+
+# ----------------------------------------------------------------------------
+# Misc
+# ----------------------------------------------------------------------------
+# Coverage reports
+coverage/
+coverage.txt
+coverage.html
+*.cover
+*.cov
+
+# Profiling data
+*.prof
+*.pprof
+
+# Debug files
+debug/
+__debug_bin
+
+# Dependency directories (vendoring)
+vendor/
+
+# Air (live reload for Go)
+.tmp/

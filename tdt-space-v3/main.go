@@ -2,9 +2,7 @@ package main
 
 import (
 	"embed"
-	"os"
 	"runtime"
-	"runtime/debug"
 
 	"tdt-space/internal/services"
 
@@ -14,28 +12,35 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-// IsDev returns true if the application is running in development mode
-// Wails v3 sets DEV=true when running in development mode via `wails3 dev`
-func IsDev() bool {
-	return os.Getenv("DEV") == "true"
-}
-
-func init() {
-	// Optimize Go runtime memory management to reduce startup memory spike
-	// Run GC more aggressively (default is 100, we use 20 for lower memory footprint)
-	debug.SetGCPercent(20)
-
-	// Set memory limit to prevent excessive allocation during startup
-	// 512MB soft limit helps control initial memory spike
-	debug.SetMemoryLimit(512 * 1024 * 1024)
-
-	// Reduce number of OS threads for goroutines (default is GOMAXPROCS)
-	// This helps reduce memory overhead from too many concurrent threads
-	runtime.GOMAXPROCS(runtime.NumCPU())
-}
+// Version information - set via ldflags during build
+// Example: -ldflags="-X main.version=0.1.2 -X main.buildTime=2026-03-12"
+var (
+	version     = "0.1.2-dev"
+	buildTime   = "unknown"
+	gitCommit   = "unknown"
+)
 
 func main() {
-	// Create services (dependency order matters)
+	// Determine frameless mode (Windows uses custom title bar)
+	frameless := runtime.GOOS == "windows"
+
+	// Build asset options - always embed assets for both dev and prod
+	// Wails v3 handles dev/prod mode automatically
+	assetOptions := application.AssetOptions{
+		Handler: application.AssetFileServerFS(assets),
+	}
+
+	// Create the Wails application FIRST
+	wailsApp := application.New(application.Options{
+		Name:        "TDT Space",
+		Description: "Multi-Agent Terminal for TDT Vibe Coding",
+		Assets:      assetOptions,
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: true,
+		},
+	})
+
+	// Create services AFTER app is created (dependency injection pattern)
 	storeSvc := services.NewStoreService()
 	terminalSvc := services.NewTerminalService()
 	workspaceSvc := services.NewWorkspaceService()
@@ -44,47 +49,26 @@ func main() {
 	systemSvc := services.NewSystemService()
 	vietnameseIMESvc := services.NewVietnameseIMEService()
 
-	// Wire dependencies
+	// Wire dependencies - set application reference immediately
+	terminalSvc.SetApplication(wailsApp)
+	systemSvc.SetApplication(wailsApp)
 	workspaceSvc.Init(storeSvc, terminalSvc)
 	templateSvc.Init(storeSvc)
 	terminalHistorySvc.Init(storeSvc)
 	vietnameseIMESvc.Init(storeSvc)
 
-	// Create App and wire its services
+	// Create App service with all dependencies
 	app := NewApp(terminalSvc, storeSvc, systemSvc, workspaceSvc, templateSvc, terminalHistorySvc, vietnameseIMESvc)
 
-	// Determine frameless mode (Windows uses custom title bar)
-	frameless := runtime.GOOS == "windows"
-
-	// Build asset options - only embed in production mode
-	// In dev mode, Wails uses the Vite dev server URL from wails.json
-	isDev := IsDev()
-	var assetOptions application.AssetOptions
-	if !isDev {
-		assetOptions = application.AssetOptions{
-			Handler: application.AssetFileServerFS(assets),
-		}
-	}
-
-	// Create the Wails application
-	wailsApp := application.New(application.Options{
-		Name:        "TDT Space",
-		Description: "Multi-Agent Terminal for TDT Vibe Coding",
-		Services: []application.Service{
-			application.NewService(app),
-			application.NewService(terminalSvc),
-			application.NewService(workspaceSvc),
-			application.NewService(templateSvc),
-			application.NewService(storeSvc),
-			application.NewService(systemSvc),
-			application.NewService(vietnameseIMESvc),
-			application.NewService(terminalHistorySvc),
-		},
-		Assets: assetOptions,
-		Mac: application.MacOptions{
-			ApplicationShouldTerminateAfterLastWindowClosed: true,
-		},
-	})
+	// Register all services with Wails
+	wailsApp.RegisterService(application.NewService(app))
+	wailsApp.RegisterService(application.NewService(terminalSvc))
+	wailsApp.RegisterService(application.NewService(workspaceSvc))
+	wailsApp.RegisterService(application.NewService(templateSvc))
+	wailsApp.RegisterService(application.NewService(storeSvc))
+	wailsApp.RegisterService(application.NewService(systemSvc))
+	wailsApp.RegisterService(application.NewService(vietnameseIMESvc))
+	wailsApp.RegisterService(application.NewService(terminalHistorySvc))
 
 	// Create the main window
 	window := wailsApp.Window.NewWithOptions(application.WebviewWindowOptions{

@@ -231,9 +231,9 @@ func (b *terminalBatcher) flushLocked() {
 	// Flush buffered data first
 	if len(b.bufferedData) > 0 {
 		for _, data := range b.bufferedData {
-			app.Event.Emit("terminal-data", map[string]interface{}{
-				"terminalId": b.terminalID,
-				"data":       string(data),
+			app.Event.Emit("terminal-data", TerminalDataEvent{
+				TerminalID: b.terminalID,
+				Data:       string(data),
 			})
 		}
 		log.Printf("[INFO] Terminal %s: flushed %d buffered data events", b.terminalID, len(b.bufferedData))
@@ -257,15 +257,15 @@ func (b *terminalBatcher) flushLocked() {
 		b.lastFlushTime = time.Now()
 
 		// Emit event to frontend — data is converted to string to prevent base64 encoding
-		app.Event.Emit("terminal-data", map[string]interface{}{
-			"terminalId": b.terminalID,
-			"data":       string(payload),
+		app.Event.Emit("terminal-data", TerminalDataEvent{
+			TerminalID: b.terminalID,
+			Data:       string(payload),
 		})
 	}
 }
 
 // stop stops the batcher and flushes remaining data.
-func (b *terminalBatcher) stop() {
+func (b *terminalBatcher) stop(shuttingDown bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -273,7 +273,15 @@ func (b *terminalBatcher) stop() {
 		b.timer.Stop()
 		b.timer = nil
 	}
-	b.flushLocked()
+
+	// Don't flush during shutdown - Wails runtime may already be shutting down
+	if !shuttingDown {
+		b.flushLocked()
+	} else {
+		b.buf = b.buf[:0]
+		b.bufferedData = nil
+		b.bufferedSize = 0
+	}
 
 	select {
 	case <-b.done:

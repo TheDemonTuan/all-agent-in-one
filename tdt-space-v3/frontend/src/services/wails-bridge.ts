@@ -9,25 +9,21 @@
  */
 
 import { Events, WML } from '@wailsio/runtime';
-// @ts-ignore - Auto-generated JS bindings without declarations
+// Auto-generated JS bindings from Wails v3 (no TypeScript declarations)
+// @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as App from '../../bindings/tdt-space/app';
-// @ts-ignore - Auto-generated JS bindings without declarations
+// @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as TerminalService from '../../bindings/tdt-space/internal/services/terminalservice';
-// @ts-ignore - Auto-generated JS bindings without declarations
+// @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as WorkspaceService from '../../bindings/tdt-space/internal/services/workspaceservice';
-// @ts-ignore - Auto-generated JS bindings without declarations
+// @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as TemplateService from '../../bindings/tdt-space/internal/services/templateservice';
-// @ts-ignore - Auto-generated JS bindings without declarations
+// @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as SystemService from '../../bindings/tdt-space/internal/services/systemservice';
-// @ts-ignore - Auto-generated JS bindings without declarations
+// @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as VietnameseIMEService from '../../bindings/tdt-space/internal/services/vietnameseimeservice';
-// @ts-ignore - Auto-generated JS bindings without declarations
-import {
-  DialogOptions,
-  SpawnTerminalOptions,
-  SpawnAgentOptions,
-// @ts-ignore - Auto-generated JS bindings without declarations
-} from '../../bindings/tdt-space/internal/services/models';
+// @ts-ignore - Wails v3 generates JS only, no .d.ts files
+import { DialogOptions, SpawnTerminalOptions, SpawnAgentOptions } from '../../bindings/tdt-space/internal/services/models';
 
 import type { AgentConfig } from '../types/workspace';
 
@@ -144,10 +140,11 @@ export interface BackendAPI {
 
 function createWailsBridge(): BackendAPI {
   const onEvent = (eventName: string, callback: (...args: any[]) => void): (() => void) => {
-    const unsub = Events.On(eventName, (wailsEvent: any) => {
-      // Wails v3 wraps payload in WailsEvent { name, data }.
-      // Unwrap .data so downstream callbacks receive the raw payload.
-      callback(wailsEvent?.data ?? wailsEvent);
+    const unsub = Events.On(eventName, (event: any) => {
+      // Wails v3 event format: {name: "event-name", data: payload}
+      // Unwrap .data để callback nhận raw payload
+      const payload = event?.data !== undefined ? event.data : event;
+      callback(payload);
     });
     return () => unsub();
   };

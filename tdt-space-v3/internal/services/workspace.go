@@ -58,7 +58,7 @@ func (w *WorkspaceService) CreateWorkspace(config Workspace) (Workspace, error) 
 	}
 	now := time.Now().UnixMilli()
 	config.CreatedAt = now
-	config.UpdatedAt = now
+	config.LastUsed = now
 
 	if config.Name == "" {
 		config.Name = fmt.Sprintf("Workspace %d", now)
@@ -74,7 +74,7 @@ func (w *WorkspaceService) CreateWorkspace(config Workspace) (Workspace, error) 
 
 // UpdateWorkspace updates an existing workspace.
 func (w *WorkspaceService) UpdateWorkspace(workspace Workspace) (Workspace, error) {
-	workspace.UpdatedAt = time.Now().UnixMilli()
+	workspace.LastUsed = time.Now().UnixMilli()
 	key := workspacePrefix + workspace.ID
 	res := w.store.SetValue(key, workspace)
 	if !res.Success {
@@ -125,7 +125,7 @@ func (w *WorkspaceService) PatchWorkspace(id string, patch map[string]interface{
 	for k, v := range patch {
 		currentMap[k] = v
 	}
-	currentMap["updatedAt"] = time.Now().UnixMilli()
+	currentMap["lastUsed"] = time.Now().UnixMilli()
 
 	merged, _ := json.Marshal(currentMap)
 	var updated Workspace

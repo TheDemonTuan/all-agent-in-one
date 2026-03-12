@@ -39,9 +39,12 @@ tasks:
             ref: .DEV
       - task: common:generate:icons
     cmds:
+      # Build Go binary with optimized flags from config.yml
       - go build {{.BUILD_FLAGS}} -o {{.OUTPUT}}
+      # Note: UPX not recommended for macOS due to codesigning issues
     vars:
-      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if .EXTRA_TAGS}}-tags {{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s"{{end}}'
+      # Production build flags - optimized for size and security
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if .EXTRA_TAGS}}-tags {{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-trimpath -buildvcs=false -ldflags="-s -w"{{if .EXTRA_TAGS}} -tags {{.EXTRA_TAGS}}{{end}}{{end}}'
       DEFAULT_OUTPUT: '{{.BIN_DIR}}/{{.APP_NAME}}'
       OUTPUT: '{{ .OUTPUT | default .DEFAULT_OUTPUT }}'
     env:
