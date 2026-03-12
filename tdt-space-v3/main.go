@@ -38,13 +38,6 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
-		// Enable remote debugging port for devtools access
-		// Open chrome://inspect in Chrome or navigate to http://localhost:9222 to open devtools
-		Windows: application.WindowsOptions{
-			AdditionalBrowserArgs: []string{
-				"--remote-debugging-port=9222",
-			},
-		},
 	})
 
 	// Create services AFTER app is created (dependency injection pattern)

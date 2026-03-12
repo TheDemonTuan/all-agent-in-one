@@ -347,13 +347,6 @@ func buildMenu(app *App) *application.Menu {
 	viewMenu.Add("Toggle Fullscreen").SetAccelerator("F11").OnClick(func(ctx *application.Context) {
 		app.app.Event.Emit("menu:toggle-fullscreen")
 	})
-	viewMenu.AddSeparator()
-	// Note: DevTools can be opened by navigating to http://localhost:9222 in Chrome
-	// or by opening chrome://inspect and selecting the TDT Space window
-	viewMenu.Add("Open DevTools (opens browser)").OnClick(func(ctx *application.Context) {
-		// Open devtools by navigating to the remote debugging URL
-		app.app.Browser.OpenURL("http://localhost:9222")
-	})
 
 	helpMenu := appMenu.AddSubmenu("Help")
 	helpMenu.Add("About TDT Space").OnClick(func(ctx *application.Context) {
