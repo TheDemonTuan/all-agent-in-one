@@ -70,10 +70,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       }).catch((err: any) => console.error('[SettingsModal] Failed to load VN IME settings:', err));
 
       backendAPI.checkVietnameseImePatchStatus().then((status: any) => {
-        setPatchStatus(status);
+        const claudeInstalled = status?.claude_code_installed ?? status?.claudeCodeInstalled ?? status?._claudeInstalled ?? false;
+        setPatchStatus({...status, _claudeInstalled: claudeInstalled});
       }).catch((err: any) => {
         console.error('[SettingsModal] Failed to check VN IME patch status:', err);
-        setPatchStatus({ claudeCodeInstalled: false, error: err.message });
+        setPatchStatus({ claude_code_installed: false, claudeCodeInstalled: false, _claudeInstalled: false, error: err.message });
       });
     }
   }, [isOpen]);
@@ -217,14 +218,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <p style={styles.infoSubtext}>Fix typing issues with OpenKey, EVKey, UniKey, PHTV</p>
               </div>
 
-              {!patchStatus?.claudeCodeInstalled && (
+              {!patchStatus && (
+                <div style={{...styles.errorBox, backgroundColor:'#1e293b'}}>
+                  <p style={styles.errorText}>⏳ Loading Claude Code status...</p>
+                </div>
+              )}
+
+              {patchStatus && !(patchStatus.claude_code_installed || patchStatus.claudeCodeInstalled || patchStatus._claudeInstalled) && (
                 <div style={styles.errorBox}>
                   <p style={styles.errorText}>⚠️ Claude Code Not Found</p>
                   <p style={styles.errorSubtext}>Install: <code>bun install -g @anthropic-ai/claude-code</code></p>
                 </div>
               )}
 
-              {patchStatus?.claudeCodeInstalled && (
+              {patchStatus && (patchStatus.claude_code_installed || patchStatus.claudeCodeInstalled || patchStatus._claudeInstalled) && (
                 <>
                   <div style={styles.statusCard}>
                     <div style={styles.statusGrid}>

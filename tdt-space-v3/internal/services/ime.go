@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -38,7 +37,7 @@ var (
 
 // VietnameseIMEService manages Vietnamese IME patching for Claude Code.
 type VietnameseIMEService struct {
-	store *StoreService
+	store *StoreServiceImpl
 }
 
 // NewVietnameseIMEService creates a new VietnameseIMEService.
@@ -47,216 +46,13 @@ func NewVietnameseIMEService() *VietnameseIMEService {
 }
 
 // Init wires the store dependency.
-func (v *VietnameseIMEService) Init(store *StoreService) {
+func (v *VietnameseIMEService) Init(store *StoreServiceImpl) {
 	v.store = store
 }
 
-// FindClaudePath locates the Claude Code CLI binary.
+// FindClaudePath locates the Claude Code CLI binary using configurable strategies.
 func (v *VietnameseIMEService) FindClaudePath() string {
-	isWin := runtime.GOOS == "windows"
-
-	run := func(name string, args ...string) string {
-		cmd := exec.Command(name, args...)
-		if isWin {
-			cmd.SysProcAttr = platform.HiddenWindowAttr()
-		}
-		out, err := cmd.Output()
-		if err != nil {
-			return ""
-		}
-		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				return line
-			}
-		}
-		return ""
-	}
-
-	fileExistsFn := func(p string) bool {
-		if p == "" {
-			return false
-		}
-		p = filepath.Clean(p)
-		info, err := os.Stat(p)
-		if err != nil {
-			return false
-		}
-		return !info.IsDir()
-	}
-
-	// Priority 1: System PATH (where/which command)
-	if isWin {
-		// Windows: where claude - try all matches
-		cmd := exec.Command("where", "claude")
-		cmd.SysProcAttr = platform.HiddenWindowAttr()
-		if out, err := cmd.Output(); err == nil {
-			lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line != "" && fileExistsFn(line) {
-					fmt.Printf("[VietnameseIME] Found Claude via 'where': %s\n", line)
-					return line
-				}
-			}
-		}
-		// Windows: PowerShell Get-Command (more reliable for finding actual binary)
-		psCmd := `Get-Command claude -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source`
-		if p := run("powershell", "-NoProfile", "-Command", psCmd); p != "" {
-			p = strings.TrimSpace(p)
-			if fileExistsFn(p) {
-				fmt.Printf("[VietnameseIME] Found Claude via PowerShell: %s\n", p)
-				return p
-			}
-		}
-	} else {
-		// Unix/macOS: which claude
-		if p := run("which", "claude"); p != "" {
-			if fileExistsFn(p) {
-				if resolved, err := filepath.EvalSymlinks(p); err == nil {
-					fmt.Printf("[VietnameseIME] Found Claude via 'which' (resolved): %s\n", resolved)
-					return resolved
-				}
-				fmt.Printf("[VietnameseIME] Found Claude via 'which': %s\n", p)
-				return p
-			}
-		}
-	}
-
-	// Priority 2: bun which claude (works cross-platform, most reliable for bun installs)
-	if p := run("bun", "which", "claude"); p != "" {
-		p = strings.TrimSpace(p)
-		if fileExistsFn(p) {
-			fmt.Printf("[VietnameseIME] Found Claude via 'bun which': %s\n", p)
-			// On Windows, try to resolve if it's a symlink/junction
-			if isWin {
-				if resolved, err := filepath.EvalSymlinks(p); err == nil {
-					fmt.Printf("[VietnameseIME] Resolved symlink: %s\n", resolved)
-					return resolved
-				}
-			}
-			return p
-		}
-	}
-
-	// Priority 3: Check Bun install paths manually
-	bunInstall := os.Getenv("BUN_INSTALL")
-	if bunInstall == "" {
-		bunInstall = filepath.Join(platform.GetUserHome(), ".bun")
-	}
-
-	claudeExe := "claude"
-	if isWin {
-		claudeExe = "claude.exe"
-	}
-
-	// Common Bun paths for Claude Code - check both binary and cli.js
-	bunPaths := []string{
-		// Direct binary in bun bin (most common for bunx)
-		filepath.Join(bunInstall, "bin", claudeExe),
-		filepath.Join(bunInstall, "bin", "claude.cmd"),
-		// cli.js (for direct script execution)
-		filepath.Join(bunInstall, "install", "global", "node_modules", "@anthropic-ai", "claude-code", "cli.js"),
-		// Alternative bun global path
-		filepath.Join(bunInstall, "node_modules", "@anthropic-ai", "claude-code", "cli.js"),
-		// Bun 1.2+ global path
-		filepath.Join(bunInstall, "global", "node_modules", "@anthropic-ai", "claude-code", "cli.js"),
-	}
-
-	for _, p := range bunPaths {
-		if fileExistsFn(p) {
-			fmt.Printf("[VietnameseIME] Found Claude at Bun path: %s\n", p)
-			return p
-		}
-	}
-
-	// Priority 4: npm global install
-	if npmRoot := run("npm", "root", "-g"); npmRoot != "" {
-		cliPath := filepath.Join(npmRoot, "@anthropic-ai", "claude-code", "cli.js")
-		if fileExistsFn(cliPath) {
-			fmt.Printf("[VietnameseIME] Found Claude via npm global: %s\n", cliPath)
-			return cliPath
-		}
-	}
-
-	// Priority 5: Windows-specific paths (APPDATA, LOCALAPPDATA, NVM)
-	if isWin {
-		var wsPaths []string
-
-		// APPDATA and LOCALAPPDATA npm/pnpm/yarn paths
-		appdata := os.Getenv("APPDATA")
-		localappdata := os.Getenv("LOCALAPPDATA")
-		for _, base := range []string{appdata, localappdata} {
-			if base != "" {
-				// npm global
-				wsPaths = append(wsPaths, filepath.Join(base, "npm", "node_modules", "@anthropic-ai", "claude-code", "cli.js"))
-				// pnpm global
-				wsPaths = append(wsPaths, filepath.Join(base, "pnpm-global", "node_modules", "@anthropic-ai", "claude-code", "cli.js"))
-				// yarn global
-				wsPaths = append(wsPaths, filepath.Join(base, "Yarn", "Data", "global", "node_modules", "@anthropic-ai", "claude-code", "cli.js"))
-			}
-		}
-
-		// NVM paths (Node Version Manager)
-		if nvmHome := os.Getenv("NVM_HOME"); nvmHome != "" {
-			if entries, err := os.ReadDir(nvmHome); err == nil {
-				for _, e := range entries {
-					if e.IsDir() {
-						wsPaths = append(wsPaths,
-							filepath.Join(nvmHome, e.Name(), "node_modules", "@anthropic-ai", "claude-code", "cli.js"),
-						)
-					}
-				}
-			}
-		}
-
-		// Bun shim paths (alternative locations)
-		bunShimPaths := []string{
-			filepath.Join(localappdata, "Microsoft", "WinGet", "Packages", "Oven.Oven", "LocalState", "bin", "claude.exe"),
-			filepath.Join(os.Getenv("USERPROFILE"), "scoop", "shims", "claude.exe"),
-		}
-		wsPaths = append(wsPaths, bunShimPaths...)
-
-		for _, p := range wsPaths {
-			if fileExistsFn(p) {
-				fmt.Printf("[VietnameseIME] Found Claude at Windows path: %s\n", p)
-				return p
-			}
-		}
-	}
-
-	// Priority 6: Official CLAUDE Code installer paths (WinGet/PowerShell)
-	if isWin {
-		// Official WinGet/PowerShell installer paths (PRIMARY - with space in "Claude Code")
-		officialPaths := []string{
-			// WinGet/PowerShell installer paths (RECOMMENDED - check first)
-			filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", "Claude Code", "claude.exe"),
-			filepath.Join(os.Getenv("PROGRAMFILES"), "Claude Code", "claude.exe"),
-			filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local", "Programs", "Claude Code", "claude.exe"),
-			// Legacy paths (keep for backward compatibility with older installs)
-			filepath.Join(os.Getenv("LOCALAPPDATA"), "Programs", "Claude", "claude.exe"),
-			filepath.Join(os.Getenv("LOCALAPPDATA"), "Claude", "claude.exe"),
-			filepath.Join(os.Getenv("PROGRAMFILES"), "Claude", "claude.exe"),
-			filepath.Join(os.Getenv("PROGRAMFILES(X86)"), "Claude", "claude.exe"),
-			filepath.Join(os.Getenv("USERPROFILE"), "AppData", "Local", "Programs", "Claude", "claude.exe"),
-		}
-		for _, p := range officialPaths {
-			if fileExistsFn(p) {
-				fmt.Printf("[VietnameseIME] Found Claude at official path: %s\n", p)
-				return p
-			}
-		}
-	}
-
-	// Not found - provide helpful message with current installation methods
-	fmt.Printf("[VietnameseIME] Claude Code not found in PATH or common locations.\n")
-	fmt.Printf("[VietnameseIME] Please install Claude Code using one of these methods:\n")
-	fmt.Printf("[VietnameseIME]   (RECOMMENDED) PowerShell: irm https://claude.ai/install.ps1 | iex\n")
-	fmt.Printf("[VietnameseIME]   (RECOMMENDED) WinGet:     winget install Anthropic.ClaudeCode\n")
-	fmt.Printf("[VietnameseIME]   (ALTERNATIVE) bun:        bun install -g @anthropic-ai/claude-code\n")
-
-	return ""
+	return FindClaudePathWithStrategy()
 }
 
 func ExtractClaudeVersion(content string) string {

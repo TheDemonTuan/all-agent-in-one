@@ -13,8 +13,8 @@ import (
 
 // App struct holds the application services.
 type App struct {
-	terminalSvc      *services.TerminalService
-	storeSvc         *services.StoreService
+	terminalSvc      *services.TerminalServiceImpl
+	storeSvc         *services.StoreServiceImpl
 	systemSvc        *services.SystemService
 	workspaceSvc     *services.WorkspaceService
 	templateSvc      *services.TemplateService
@@ -25,8 +25,8 @@ type App struct {
 
 // NewApp creates a new App with required services.
 func NewApp(
-	terminalSvc *services.TerminalService,
-	storeSvc *services.StoreService,
+	terminalSvc *services.TerminalServiceImpl,
+	storeSvc *services.StoreServiceImpl,
 	systemSvc *services.SystemService,
 	workspaceSvc *services.WorkspaceService,
 	templateSvc *services.TemplateService,
@@ -282,12 +282,18 @@ func (a *App) ListDirectory(path string) services.DirectoryListing {
 
 // ApplyVietnameseImePatch applies the Vietnamese IME patch to Claude Code.
 func (a *App) ApplyVietnameseImePatch() services.PatchResult {
-	return a.vietnameseIMESvc.ApplyVietnameseImePatch()
+	fmt.Printf("[IME_DEBUG] ApplyVietnameseImePatch called\n")
+	result := a.vietnameseIMESvc.ApplyVietnameseImePatch()
+	fmt.Printf("[IME_DEBUG] ApplyVietnameseImePatch result: %+v\n", result)
+	return result
 }
 
 // CheckVietnameseImePatchStatus returns the current patch status.
 func (a *App) CheckVietnameseImePatchStatus() services.PatchStatus {
-	return a.vietnameseIMESvc.GetPatchStatus()
+	fmt.Printf("[IME_DEBUG] CheckVietnameseImePatchStatus called\n")
+	status := a.vietnameseIMESvc.GetPatchStatus()
+	fmt.Printf("[IME_DEBUG] CheckVietnameseImePatchStatus result: %+v\n", status)
+	return status
 }
 
 // GetVietnameseImeSettings returns the Vietnamese IME settings.
@@ -302,12 +308,18 @@ func (a *App) SetVietnameseImeSettings(settings services.IMESettings) services.R
 
 // RestoreVietnameseImePatch restores the original Claude Code from backup.
 func (a *App) RestoreVietnameseImePatch() services.RestoreResult {
-	return a.vietnameseIMESvc.RestoreFromBackup()
+	fmt.Printf("[IME_DEBUG] RestoreVietnameseImePatch called\n")
+	result := a.vietnameseIMESvc.RestoreFromBackup()
+	fmt.Printf("[IME_DEBUG] RestoreVietnameseImePatch result: %+v\n", result)
+	return result
 }
 
 // ValidateVietnameseImePatch validates the current patch status.
 func (a *App) ValidateVietnameseImePatch() services.PatchValidation {
-	return a.vietnameseIMESvc.ValidatePatch()
+	fmt.Printf("[IME_DEBUG] ValidateVietnameseImePatch called\n")
+	result := a.vietnameseIMESvc.ValidatePatch()
+	fmt.Printf("[IME_DEBUG] ValidateVietnameseImePatch result: %+v\n", result)
+	return result
 }
 
 // ============================================================================
@@ -334,6 +346,13 @@ func buildMenu(app *App) *application.Menu {
 	viewMenu := appMenu.AddSubmenu("View")
 	viewMenu.Add("Toggle Fullscreen").SetAccelerator("F11").OnClick(func(ctx *application.Context) {
 		app.app.Event.Emit("menu:toggle-fullscreen")
+	})
+	viewMenu.AddSeparator()
+	// Note: DevTools can be opened by navigating to http://localhost:9222 in Chrome
+	// or by opening chrome://inspect and selecting the TDT Space window
+	viewMenu.Add("Open DevTools (opens browser)").OnClick(func(ctx *application.Context) {
+		// Open devtools by navigating to the remote debugging URL
+		app.app.Browser.OpenURL("http://localhost:9222")
 	})
 
 	helpMenu := appMenu.AddSubmenu("Help")

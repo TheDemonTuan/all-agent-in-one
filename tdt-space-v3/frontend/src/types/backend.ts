@@ -24,6 +24,8 @@ export interface VietnameseImeStatus {
   hasBackup: boolean;
   installedVia: 'bun' | 'npm' | 'pnpm' | 'binary' | 'unknown';
   version?: string;
+  claude_code_installed: boolean;
+  claudeCodeInstalled?: boolean; // camelCase variant for Wails serialization compatibility
 }
 
 export interface PatchValidation {

@@ -192,7 +192,7 @@ type PatchStatus struct {
 	HasBackup           bool   `json:"hasBackup"`
 	InstalledVia        string `json:"installedVia"` // "bun" | "npm" | "pnpm" | "binary" | "unknown"
 	Version             string `json:"version,omitempty"`
-	ClaudeCodeInstalled bool   `json:"claudeCodeInstalled"`
+	ClaudeCodeInstalled bool   `json:"claude_code_installed"`
 }
 
 // IMESettings stores Vietnamese IME settings.

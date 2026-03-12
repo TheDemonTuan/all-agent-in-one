@@ -13,7 +13,7 @@ import { Events, WML } from '@wailsio/runtime';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as App from '../../bindings/tdt-space/app';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
-import * as TerminalService from '../../bindings/tdt-space/internal/services/terminalservice';
+import * as TerminalServiceImpl from '../../bindings/tdt-space/internal/services/terminalserviceimpl';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as WorkspaceService from '../../bindings/tdt-space/internal/services/workspaceservice';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
@@ -22,6 +22,8 @@ import * as TemplateService from '../../bindings/tdt-space/internal/services/tem
 import * as SystemService from '../../bindings/tdt-space/internal/services/systemservice';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as VietnameseIMEService from '../../bindings/tdt-space/internal/services/vietnameseimeservice';
+// @ts-ignore - Wails v3 generates JS only, no .d.ts files
+import * as StoreServiceImpl from '../../bindings/tdt-space/internal/services/storeserviceimpl';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import { DialogOptions, SpawnTerminalOptions, SpawnAgentOptions } from '../../bindings/tdt-space/internal/services/models';
 
@@ -227,19 +229,19 @@ function createWailsBridge(): BackendAPI {
       return Promise.resolve(null);
     }, null),
     cleanupWorkspaceTerminals: (id) => safeCall(async () => {
-      const result = await TerminalService.CleanupWorkspaceTerminals(id);
+      const result = await TerminalServiceImpl.CleanupWorkspaceTerminals(id);
       return { success: result.success, cleaned: result.cleaned?.length };
     }, { success: false, cleaned: 0 }),
     setWorkspaceActive: (workspaceId, active) => safeCall(async () => {
-      await TerminalService.SetWorkspaceActive(workspaceId, active);
+      await TerminalServiceImpl.SetWorkspaceActive(workspaceId, active);
       return { success: true as boolean };
     }, { success: false } as { success: boolean }),
     getTerminalBacklog: (terminalId) => safeCall(async () => {
-      const backlog = await TerminalService.GetTerminalBacklog(terminalId);
+      const backlog = await TerminalServiceImpl.GetTerminalBacklog(terminalId);
       return { success: true as boolean, backlog: backlog || '' };
     }, { success: false, backlog: '' } as { success: boolean; backlog: string }),
     clearTerminalBacklog: (terminalId) => safeCall(async () => {
-      await TerminalService.ClearTerminalBacklog(terminalId);
+      await TerminalServiceImpl.ClearTerminalBacklog(terminalId);
       return { success: true as boolean };
     }, { success: false } as { success: boolean }),
 
@@ -256,7 +258,7 @@ function createWailsBridge(): BackendAPI {
     spawnTerminal: (id, cwd, workspaceId, cols, rows) =>
       safeCall(async () => {
         const opts = new SpawnTerminalOptions({ id, cwd, workspaceId, cols, rows });
-        const result = await TerminalService.SpawnTerminal(opts);
+        const result = await TerminalServiceImpl.SpawnTerminal(opts);
         return { success: result.success as boolean, pid: result.pid as number | undefined, error: result.error as string | undefined };
       }, { success: false, pid: undefined, error: 'TerminalService unavailable' }),
 
@@ -270,27 +272,27 @@ function createWailsBridge(): BackendAPI {
           cols,
           rows,
         });
-        const result = await TerminalService.SpawnTerminalWithAgent(opts);
+        const result = await TerminalServiceImpl.SpawnTerminalWithAgent(opts);
         return { success: result.success as boolean, pid: result.pid as number | undefined, error: result.error as string | undefined };
       }, { success: false, pid: undefined, error: 'TerminalService unavailable' }),
 
     terminalWrite:  (id, data)           => safeCall(async () => {
-      await TerminalService.WriteToTerminal(id, data);
+      await TerminalServiceImpl.WriteToTerminal(id, data);
       return { success: true as boolean, error: undefined as string | undefined };
     }, { success: false, error: 'TerminalService unavailable' }),
 
     terminalKill:   (id)                 => safeCall(async () => {
-      await TerminalService.KillTerminal(id);
+      await TerminalServiceImpl.KillTerminal(id);
       return { success: true as boolean, error: undefined as string | undefined };
     }, { success: false, error: 'TerminalService unavailable' }),
 
     terminalResize: (id, cols, rows)     => safeCall(async () => {
-      await TerminalService.ResizeTerminal(id, cols, rows);
+      await TerminalServiceImpl.ResizeTerminal(id, cols, rows);
       return { success: true as boolean };
     }, { success: false } as { success: boolean }),
 
     getTerminalStatus: (id)              => safeCall(async () => {
-      const status = await TerminalService.GetTerminalStatus(id);
+      const status = await TerminalServiceImpl.GetTerminalStatus(id);
       return { exists: status.exists ?? false, status: status.status ?? 'stopped', pid: status.pid as number | undefined };
     }, { exists: false, status: 'stopped', pid: undefined as number | undefined }),
 
@@ -310,13 +312,17 @@ function createWailsBridge(): BackendAPI {
     }, { success: false, message: 'Failed to apply patch', version: undefined, processesKilled: undefined }),
     checkVietnameseImePatchStatus: ()          => safeCall(async () => {
       const r = await App.CheckVietnameseImePatchStatus();
+      const claudeInstalled = r.ClaudeCodeInstalled ?? r.claudeCodeInstalled ?? r.claude_code_installed ?? false;
       return {
         isPatched: r.isPatched ?? false,
         claudePath: r.claudePath ?? '',
         hasBackup: r.hasBackup ?? false,
         installedVia: r.installedVia ?? 'unknown',
+        version: r.version,
+        claude_code_installed: claudeInstalled,
+        claudeCodeInstalled: claudeInstalled,
       };
-    }, { isPatched: false, claudePath: '', hasBackup: false, installedVia: 'unknown' }),
+    }, { isPatched: false, claudePath: '', hasBackup: false, installedVia: 'unknown', version: undefined, claude_code_installed: false, claudeCodeInstalled: false }),
     getVietnameseImeSettings:      ()          => safeCall(async () => {
       const r = await App.GetVietnameseImeSettings();
       return {

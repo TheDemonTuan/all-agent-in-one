@@ -115,9 +115,12 @@ export const TerminalCell = React.memo<TerminalCellProps>(({
   // Fix 1: Terminal generation counter to prevent race conditions during agent switch
   // Each time terminal is respawned, increment generation to invalidate old events
   const terminalGenerationRef = useRef<number>(0);
-  
+
   // Fix 2: Flag to ignore events during agent switch
   const isSwitchingAgentRef = useRef<boolean>(false);
+
+  // Fix 3: Track previous active state to prevent aggressive scroll-to-bottom
+  const wasPreviouslyActiveRef = useRef<boolean>(false);
 
   // Performance tracking for conditional WebGL (Option C: Balanced)
   const totalDataReceivedRef = useRef<number>(0);
@@ -327,7 +330,12 @@ export const TerminalCell = React.memo<TerminalCellProps>(({
   const handleScroll = useCallback(() => {
     if (terminalRef.current) {
       const buffer = terminalRef.current.buffer.active;
-      const isAtBottom = buffer.viewportY >= buffer.baseY - buffer.viewportY;
+      // Fix: Correct scroll position formula
+      // viewportY = current scroll position (0 = top)
+      // baseY = total scrollable lines
+      // rows = visible lines
+      // isAtBottom when viewportY >= baseY - rows
+      const isAtBottom = buffer.viewportY >= buffer.baseY - terminalRef.current.rows;
 
       if (isAtBottom) {
         setUnreadCount(0);
@@ -638,19 +646,24 @@ export const TerminalCell = React.memo<TerminalCellProps>(({
     // Setup event listeners (VAL-MEM-003)
 
     // Helper function: rate-limited terminal write with FPS capping (Option C)
+    // Fix 4: Smart auto-scroll - preserves scroll position when user is scrolled up
     const writeWithRateLimit = (data: string) => {
       if (!terminalRef.current) return;
-      
+
       const now = Date.now();
-      
+
+      // Check scroll position BEFORE writing to determine if we should preserve position
+      const buffer = terminalRef.current.buffer.active;
+      const userHasScrolledUp = buffer.viewportY > 0 && buffer.viewportY < buffer.baseY - terminalRef.current.rows;
+
       // Clean up old timestamps (older than 1 second)
       writeTimestampsRef.current = writeTimestampsRef.current.filter(ts => now - ts < 1000);
-      
+
       // Check if we're over the rate limit
       if (writeTimestampsRef.current.length >= MAX_WRITES_PER_SECOND) {
         // Buffer the data and schedule for later
         pendingWriteBufferRef.current.push(data);
-        
+
         // Schedule drain if not already scheduled
         if (!writeTimeoutRef.current) {
           const oldestTimestamp = writeTimestampsRef.current[0];
@@ -661,16 +674,30 @@ export const TerminalCell = React.memo<TerminalCellProps>(({
             const buffered = pendingWriteBufferRef.current.join('');
             pendingWriteBufferRef.current = [];
             if (buffered && terminalRef.current) {
+              // Preserve scroll position if user was scrolled up
+              const buf = terminalRef.current.buffer.active;
+              const wasScrolledUp = buf.viewportY > 0 && buf.viewportY < buf.baseY - terminalRef.current.rows;
               terminalRef.current.write(buffered);
+              if (wasScrolledUp) {
+                // Restore scroll position after write
+                terminalRef.current.scrollToLine(buf.viewportY);
+              }
             }
           }, delay);
         }
         return;
       }
-      
+
       // Record this write timestamp
       writeTimestampsRef.current.push(now);
       terminalRef.current.write(data);
+
+      // Fix: If user was scrolled up, preserve their scroll position
+      // xterm.js auto-scrolls to bottom on write - we undo that if user was reading history
+      if (userHasScrolledUp) {
+        // Restore scroll position to where user was (don't force to bottom)
+        terminalRef.current.scrollToLine(buffer.viewportY);
+      }
     };
 
     listenersRef.current.unsubscribeData = backendAPI.onTerminalData((event: { terminalId: string; data: string }) => {
@@ -707,8 +734,9 @@ export const TerminalCell = React.memo<TerminalCellProps>(({
       // Use rate-limited write (Option C: FPS capping)
       writeWithRateLimit(outputData);
 
+      // Fix: Correct scroll position formula for unread count tracking
       const buffer = terminalRef.current.buffer.active;
-      if (buffer.viewportY < buffer.baseY - buffer.viewportY) {
+      if (buffer.viewportY < buffer.baseY - terminalRef.current.rows) {
         setUnreadCount((prev: number) => prev + 1);
       }
     });
@@ -1048,15 +1076,21 @@ export const TerminalCell = React.memo<TerminalCellProps>(({
   // When becoming active: only focus the terminal, do NOT call fit().
   // When becoming inactive: blur the terminal to hide cursor.
   // Border width is now constant (2px) so container size doesn't change on focus switch.
+  // Fix 5: Only scroll to bottom on initial activation, not on every render
   useEffect(() => {
     if (!terminalRef.current) return;
 
     if (isActive) {
-      terminalRef.current.scrollToBottom();
+      // Only scroll to bottom when first becoming active (not on every re-render)
+      if (!wasPreviouslyActiveRef.current) {
+        terminalRef.current.scrollToBottom();
+        wasPreviouslyActiveRef.current = true;
+      }
       terminalRef.current.focus();
     } else {
       // Blur when becoming inactive to hide cursor
       terminalRef.current.blur();
+      wasPreviouslyActiveRef.current = false;
     }
   }, [isActive, terminal.id]);
 
