@@ -183,11 +183,17 @@ export const WorkspaceTabBar: React.FC = () => {
   const setWorkspaceModalOpen = useWorkspaceStore((s) => s.setWorkspaceModalOpen);
   const setTheme = useWorkspaceStore((s) => s.setTheme);
   const setWorkspaceModalOpenWithEdit = useWorkspaceStore((s) => s.setWorkspaceModalOpenWithEdit);
+  const reorderWorkspaces = useWorkspaceStore((s) => s.reorderWorkspaces);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     workspaceId: string;
   } | null>(null);
+
+  // Drag and drop state
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  const tabsContainerRef = React.useRef<HTMLDivElement>(null);
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
     workspaceId: string;
@@ -282,6 +288,38 @@ export const WorkspaceTabBar: React.FC = () => {
     setCurrentWorkspace(ws!);
   }, [workspaces, setCurrentWorkspace]);
 
+  // Drag and drop handlers
+  const handleDragStart = useCallback((index: number) => {
+    setDraggedIndex(index);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    setDropTargetIndex(index);
+  }, [draggedIndex]);
+
+  const handleDragLeave = useCallback(() => {
+    setDropTargetIndex(null);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDropTargetIndex(null);
+      return;
+    }
+    reorderWorkspaces(draggedIndex, dropIndex);
+    setDraggedIndex(null);
+    setDropTargetIndex(null);
+  }, [draggedIndex, reorderWorkspaces]);
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedIndex(null);
+    setDropTargetIndex(null);
+  }, []);
+
   const isDeleteAll = deleteModal?.workspaceId === 'ALL';
 
   const getTerminalCount = useCallback((workspaceId: string) => {
@@ -294,39 +332,54 @@ export const WorkspaceTabBar: React.FC = () => {
   return (
     <>
       <div className="workspace-tab-bar">
-        <div className="tabs-container" role="tablist" aria-label="Workspaces">
-          {workspaces.filter(Boolean).map((workspace) => {
+        <div className="tabs-container" ref={tabsContainerRef} role="tablist" aria-label="Workspaces">
+          {workspaces.filter(Boolean).map((workspace, index) => {
             const isActive = currentWorkspace?.id === workspace.id;
             const terminalCount = getTerminalCount(workspace.id);
+            const isDragging = draggedIndex === index;
+            const isDropTarget = dropTargetIndex === index;
 
             return (
-              <div
-                key={workspace.id}
-                className={`workspace-tab ${isActive ? 'active' : ''}`}
-                onClick={() => handleWorkspaceClick(workspace.id)}
-                onContextMenu={(e) => handleContextMenu(e, workspace.id)}
-                title={`${workspace.name} - ${terminalCount} terminal${terminalCount !== 1 ? 's' : ''}`}
-                role="tab"
-                aria-selected={isActive}
-                tabIndex={isActive ? 0 : -1}
-              >
-                <span className="tab-icon" aria-hidden="true">{workspace.icon || '📁'}</span>
-                <span className="tab-name">{workspace.name}</span>
-                <span className="terminal-badge" aria-label={`${terminalCount} terminal${terminalCount !== 1 ? 's' : ''}`}>
-                  {terminalCount}
-                </span>
-                <button
-                  className="tab-close-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    requestDelete(workspace.id, workspace.name);
-                  }}
-                  title="Delete workspace"
-                  aria-label={`Delete ${workspace.name}`}
+              <React.Fragment key={workspace.id}>
+                {isDropTarget && draggedIndex !== null && draggedIndex < index && (
+                  <div className="drop-indicator" />
+                )}
+                <div
+                  className={`workspace-tab ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
+                  onClick={() => handleWorkspaceClick(workspace.id)}
+                  onContextMenu={(e) => handleContextMenu(e, workspace.id)}
+                  draggable
+                  onDragStart={() => handleDragStart(index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, index)}
+                  onDragEnd={handleDragEnd}
+                  title={`${workspace.name} - ${terminalCount} terminal${terminalCount !== 1 ? 's' : ''}`}
+                  role="tab"
+                  aria-selected={isActive}
+                  tabIndex={isActive ? 0 : -1}
                 >
-                  ×
-                </button>
-              </div>
+                  <span className="tab-icon" aria-hidden="true">{workspace.icon || '📁'}</span>
+                  <span className="tab-name">{workspace.name}</span>
+                  <span className="terminal-badge" aria-label={`${terminalCount} terminal${terminalCount !== 1 ? 's' : ''}`}>
+                    {terminalCount}
+                  </span>
+                  <button
+                    className="tab-close-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      requestDelete(workspace.id, workspace.name);
+                    }}
+                    title="Delete workspace"
+                    aria-label={`Delete ${workspace.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
+                {isDropTarget && draggedIndex !== null && draggedIndex > index && (
+                  <div className="drop-indicator" />
+                )}
+              </React.Fragment>
             );
           })}
 

@@ -201,7 +201,8 @@ export const WorkspaceCreationModal: React.FC<WorkspaceCreationModalProps> = ({
   const handleStepClick = (step: Step) => {
     const currentIndex = steps.indexOf(currentStep);
     const targetIndex = steps.indexOf(step);
-    if (targetIndex <= currentIndex) {
+    // Allow free navigation in edit mode, or only backward navigation in create mode
+    if (isEditMode || targetIndex <= currentIndex) {
       setCurrentStep(step);
     }
   };

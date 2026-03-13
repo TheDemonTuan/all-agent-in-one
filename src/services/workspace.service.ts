@@ -199,6 +199,54 @@ class WorkspaceServiceClass {
       return false;
     }
   }
+
+  /**
+   * Save the active workspace ID for restore on next startup
+   */
+  async saveActiveWorkspace(workspaceId: string): Promise<boolean> {
+    this.log.info('Saving active workspace', { workspaceId });
+
+    if (!isWailsAvailable()) {
+      return false;
+    }
+
+    try {
+      const result = await backendAPI.setActiveWorkspace(workspaceId);
+      if (result.success) {
+        this.log.info('Active workspace saved', { workspaceId });
+      } else {
+        this.log.error('Failed to save active workspace', { workspaceId, error: result.error });
+      }
+      return result.success;
+    } catch (error: any) {
+      this.log.error('Error saving active workspace', { workspaceId, error: error.message });
+      return false;
+    }
+  }
+
+  /**
+   * Get the last active workspace ID for restore
+   */
+  async getActiveWorkspace(): Promise<string | null> {
+    this.log.info('Getting active workspace');
+
+    if (!isWailsAvailable()) {
+      return null;
+    }
+
+    try {
+      const result = await backendAPI.getActiveWorkspace();
+      if (result.workspaceId) {
+        this.log.info('Active workspace found', { workspaceId: result.workspaceId });
+        return result.workspaceId;
+      }
+      this.log.info('No active workspace found');
+      return null;
+    } catch (error: any) {
+      this.log.error('Error getting active workspace', { error: error.message });
+      return null;
+    }
+  }
 }
 
 // Singleton instance

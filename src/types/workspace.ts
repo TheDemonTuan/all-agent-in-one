@@ -117,4 +117,5 @@ export interface WorkspaceState {
   getPreviousTerminal: () => TerminalPane | null;
   getWorkspaceByIndex: (index: number) => WorkspaceLayout | null;
   getTerminalByIndex: (terminalIndex: number) => TerminalPane | null;
+  reorderWorkspaces: (fromIndex: number, toIndex: number) => void;
 }

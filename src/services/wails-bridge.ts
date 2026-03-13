@@ -44,6 +44,8 @@ declare global {
           DeleteWorkspace(id: string): Promise<BackendResult>;
           GetWorkspace(id: string): Promise<any>;
           PatchWorkspace(id: string, patch: Record<string, any>): Promise<any>;
+          SetActiveWorkspace(workspaceId: string): Promise<BackendResult>;
+          GetActiveWorkspace(): Promise<string>;
         };
         TemplateService?: {
           GetTemplates(): Promise<any[]>;
@@ -152,6 +154,8 @@ export interface BackendAPI {
   switchWorkspace(id: string): Promise<any>;
   cleanupWorkspaceTerminals(workspaceId: string): Promise<{ success: boolean; cleaned?: number }>;
   setWorkspaceActive(workspaceId: string, active: boolean): Promise<{ success: boolean }>;
+  setActiveWorkspace(workspaceId: string): Promise<{ success: boolean; error?: string }>;
+  getActiveWorkspace(): Promise<{ success: boolean; workspaceId?: string; error?: string }>;
   getTerminalBacklog(terminalId: string): Promise<{ success: boolean; backlog: string }>;
   clearTerminalBacklog(terminalId: string): Promise<{ success: boolean }>;
 
@@ -392,6 +396,8 @@ function createWailsBridge(): BackendAPI {
       return Promise.resolve({ success: false, cleaned: 0 });
     }, { success: false, cleaned: 0 }),
     setWorkspaceActive:         (workspaceId, active) => safeCall(() => app()!.SetWorkspaceActive(workspaceId, active), { success: false }),
+    setActiveWorkspace:         (workspaceId) => safeCall(() => workspaceService()?.SetActiveWorkspace(workspaceId) ?? Promise.resolve({ success: false, error: 'WorkspaceService unavailable' }), { success: false, error: 'Failed to save active workspace' }),
+    getActiveWorkspace:         () => safeCall(() => workspaceService()?.GetActiveWorkspace().then((id: string) => ({ success: true, workspaceId: id })).catch(() => ({ success: false })) ?? Promise.resolve({ success: false }), { success: false }),
     getTerminalBacklog:         (terminalId) => safeCall(() => app()!.GetTerminalBacklog(terminalId), { success: false, backlog: '' }),
     clearTerminalBacklog:       (terminalId) => safeCall(() => app()!.ClearTerminalBacklog(terminalId), { success: false }),
 
@@ -472,6 +478,8 @@ function createStubBridge(): BackendAPI {
     onTerminalExit:    noopUnsubscribe,
     onTerminalError:   noopUnsubscribe,
     setWorkspaceActive:            () => Promise.resolve({ success: false }),
+    setActiveWorkspace:            () => Promise.resolve({ success: false, error: 'Wails not available' }),
+    getActiveWorkspace:            () => Promise.resolve({ success: false, error: 'Wails not available' }),
     getTerminalBacklog:            () => Promise.resolve({ success: false, backlog: '' }),
     clearTerminalBacklog:          () => Promise.resolve({ success: false }),
     applyVietnameseImePatch:       noop as any,

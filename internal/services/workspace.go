@@ -136,6 +136,35 @@ func (w *WorkspaceService) PatchWorkspace(id string, patch map[string]interface{
 	return w.UpdateWorkspace(updated)
 }
 
+const activeWorkspaceKey = "app:active-workspace"
+
+// SetActiveWorkspace saves the ID of the currently active workspace.
+func (w *WorkspaceService) SetActiveWorkspace(workspaceID string) Result {
+	if workspaceID == "" {
+		return w.store.DeleteValue(activeWorkspaceKey)
+	}
+	return w.store.SetValue(activeWorkspaceKey, map[string]interface{}{
+		"workspaceId": workspaceID,
+		"timestamp":   time.Now().UnixMilli(),
+	})
+}
+
+// GetActiveWorkspace returns the ID of the last active workspace.
+func (w *WorkspaceService) GetActiveWorkspace() (string, error) {
+	raw, err := w.store.GetRaw(activeWorkspaceKey)
+	if err != nil {
+		return "", err
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &data); err != nil {
+		return "", err
+	}
+	if id, ok := data["workspaceId"].(string); ok {
+		return id, nil
+	}
+	return "", fmt.Errorf("invalid active workspace data")
+}
+
 // sortWorkspaces sorts workspaces by createdAt ascending.
 func sortWorkspaces(ws []Workspace) {
 	for i := 1; i < len(ws); i++ {

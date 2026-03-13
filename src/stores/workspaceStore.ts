@@ -128,9 +128,23 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         // Filter out null/undefined workspaces and those without id
         const validWorkspaces = (workspaces || []).filter((ws: any) => ws && ws.id);
         if (validWorkspaces.length > 0) {
+          // Try to restore the last active workspace
+          let activeWorkspace = validWorkspaces[0];
+          try {
+            const activeResult = await backendAPI.getActiveWorkspace();
+            if (activeResult.success && activeResult.workspaceId) {
+              const found = validWorkspaces.find((ws: any) => ws.id === activeResult.workspaceId);
+              if (found) {
+                activeWorkspace = found;
+                console.log('[WorkspaceStore] Restored active workspace:', found.name);
+              }
+            }
+          } catch (restoreErr) {
+            console.warn('[WorkspaceStore] Failed to restore active workspace:', restoreErr);
+          }
           set({
             workspaces: validWorkspaces,
-            currentWorkspace: validWorkspaces[0] || null
+            currentWorkspace: activeWorkspace
           });
         } else {
           set({
@@ -152,8 +166,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       // This method is kept for backward compatibility but does nothing
     },
 
-    setCurrentWorkspace: (workspace) => {
+    setCurrentWorkspace: async (workspace) => {
       set({ currentWorkspace: workspace });
+
+      // Save active workspace ID for restore on next startup
+      if (workspace?.id) {
+        try {
+          await backendAPI.setActiveWorkspace(workspace.id);
+        } catch (err) {
+          console.warn('[WorkspaceStore] Failed to save active workspace:', err);
+        }
+      }
 
       // Validate Vietnamese IME patch when switching to workspace with Claude Code terminals
       backendAPI.validatePatchForWorkspace(workspace).catch((err: any) => {
@@ -210,6 +233,16 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         await backendAPI.deleteWorkspace(id);
       } catch (err) {
         console.error('[WorkspaceStore] Failed to delete workspace in backend:', err);
+      }
+
+      // Clear active workspace if deleting the active one
+      const state = get();
+      if (state.currentWorkspace?.id === id) {
+        try {
+          await backendAPI.setActiveWorkspace('');
+        } catch (err) {
+          console.warn('[WorkspaceStore] Failed to clear active workspace:', err);
+        }
       }
 
       // Update local state
@@ -656,6 +689,31 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
      */
     _cleanupDebounceTimers: () => {
       debounceSave.clear();
+    },
+
+    reorderWorkspaces: (fromIndex: number, toIndex: number) => {
+      if (fromIndex === toIndex) return;
+      if (fromIndex < 0 || toIndex < 0) return;
+
+      set((state) => {
+        if (fromIndex >= state.workspaces.length || toIndex >= state.workspaces.length) {
+          return state;
+        }
+
+        const newWorkspaces = [...state.workspaces];
+        const [movedWorkspace] = newWorkspaces.splice(fromIndex, 1);
+        newWorkspaces.splice(toIndex, 0, movedWorkspace);
+
+        // Save reordered workspaces to backend
+        Promise.all(newWorkspaces.map(ws => backendAPI.updateWorkspace(ws)))
+          .catch((err: Error) => {
+            console.error('[WorkspaceStore] Failed to save reordered workspaces:', err);
+          });
+
+        return {
+          workspaces: newWorkspaces,
+        };
+      });
     },
   };
 });
