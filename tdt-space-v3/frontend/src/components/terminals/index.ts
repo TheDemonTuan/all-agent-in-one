@@ -1,5 +1,5 @@
 // Export all terminal components
-export { TerminalCell } from './TerminalCell';
-export { TerminalGrid } from './TerminalGrid';
-export { TerminalSearch } from './TerminalSearch';
-export { TerminalContextMenu } from './TerminalContextMenu';
+export { default as TerminalCell } from './TerminalCell.svelte';
+export { default as TerminalGrid } from './TerminalGrid.svelte';
+export { default as TerminalSearch } from './TerminalSearch.svelte';
+export { default as TerminalContextMenu } from './TerminalContextMenu.svelte';

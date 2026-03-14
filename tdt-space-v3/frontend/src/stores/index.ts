@@ -1,5 +1,5 @@
 // Export all stores from a single entry point
-export { useWorkspaceStore, initializePlatformInfo } from './workspaceStore';
-export { useTemplateStore } from './templateStore';
-export { useSettingsStore } from './settingsStore';
+export { workspaceStore, initializePlatformInfo } from './workspaceStore.svelte';
+export { settingsStore } from './settingsStore.svelte';
+export { templateStore } from './templateStore.svelte';
 export { useTerminalHistoryStore } from './terminalHistoryStore';

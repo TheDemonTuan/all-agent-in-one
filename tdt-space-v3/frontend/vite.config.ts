@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 import wails from '@wailsio/runtime/plugins/vite';
 import path from 'path';
 import { visualizer } from 'rollup-plugin-visualizer';
@@ -13,7 +13,11 @@ const isDev = process.env.PRODUCTION !== 'true';
 
 export default defineConfig({
   plugins: [
-    react(),
+    svelte({
+      compilerOptions: {
+        runes: true, // Enable Svelte 5 runes mode
+      }
+    }),
     wails('./bindings'),
     // Bundle size visualization (development only)
     !isDev && visualizer({
@@ -63,9 +67,8 @@ export default defineConfig({
       output: {
         // Optimize chunk splitting for better caching
         manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
+          'svelte-vendor': ['svelte'],
           'xterm': ['@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-web-links', '@xterm/addon-search', '@xterm/addon-webgl'],
-          'zustand': ['zustand'],
         },
         // Optimize chunk naming
         entryFileNames: 'assets/[name].[hash].js',
@@ -79,7 +82,7 @@ export default defineConfig({
   },
   // Optimize dependencies pre-bundling
   optimizeDeps: {
-    include: ['react', 'react-dom', '@xterm/xterm', 'zustand'],
+    include: ['@xterm/xterm'],
     // Exclude large dependencies that don't need pre-bundling
     exclude: ['@xterm/addon-webgl'],
   },

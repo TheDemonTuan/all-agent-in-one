@@ -46,3 +46,18 @@ export interface TerminalSpawnOptions {
   workspaceId?: string;
   agentConfig?: AgentConfig;
 }
+
+
+
+/**
+ * Command block data for terminal history
+ */
+export interface CommandBlockData {
+  id: string;
+  terminalId?: string;
+  command: string;
+  output?: string;
+  status?: 'running' | 'success' | 'error';
+  isActive?: boolean;
+  timestamp?: number;
+}

@@ -1,0 +1,33 @@
+--- a/frontend/src/components/terminals/TerminalCell.svelte
++++ b/frontend/src/components/terminals/TerminalCell.svelte
+@@ -196,20 +196,27 @@
+   // Safe fit that only runs when dimensions are available
+   function safeFit() {
+     if (!fitAddon || !terminalInstance) return;
++    
++    // Skip if terminal not visible (prevents resize loops during workspace switches)
++    if (!isActive) return;
++    
++    // Skip if terminal hasn't been properly initialized yet
++    if (!hasStarted) return;
+ 
+     const dims = fitAddon.proposeDimensions();
+     if (dims) {
+       const oldCols = terminalInstance.cols;
+       const oldRows = terminalInstance.rows;
+       
+-      terminalInstance.resize(dims.cols, dims.rows);
++      // Only resize if dimensions actually need to change
++      if (dims.cols === oldCols && dims.rows === oldRows) return;
++      
++      terminalInstance.resize(dims.cols, dims.rows);
+       
+-      // Only log if dimensions actually changed
+-      if (dims.cols !== oldCols || dims.rows !== oldRows) {
+-        console.log(`[TerminalCell] Fit applied: ${oldCols}x${oldRows} -> ${dims.cols}x${dims.rows}`);
+-      }
++      console.log(`[TerminalCell] Fit applied: ${oldCols}x${oldRows} -> ${dims.cols}x${dims.rows}`);
+     } else {
+       console.warn('[TerminalCell] proposeDimensions returned undefined, skipping fit');
+     }
+   }

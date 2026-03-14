@@ -4,3 +4,6 @@ export * from './workspaces';
 export * from './agents';
 export * from './modals';
 export * from './ui';
+
+export { default as Sidebar } from './layout/Sidebar.svelte';
+export { default as StatusBar } from './layout/StatusBar.svelte';

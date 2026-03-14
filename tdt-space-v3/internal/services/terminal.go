@@ -646,6 +646,25 @@ func getAgentInstallCommand(agentType, agentCmd string) string {
 	return ""
 }
 
+// getAgentDisplayName returns user-friendly name for agent type
+func getAgentDisplayName(agentType string) string {
+	names := map[string]string{
+		"claude-code": "Claude Code",
+		"opencode":    "OpenCode",
+		"droid":       "Droid",
+		"gemini-cli":  "Gemini CLI",
+		"aider":       "Aider",
+		"codex":       "Codex CLI",
+		"amp":         "Amp",
+		"continue":    "Continue",
+		"oh-my-pi":    "Oh My Pi",
+	}
+	if name, ok := names[agentType]; ok {
+		return name
+	}
+	return agentType
+}
+
 // ============================================================================
 // Workspace Active State Tracking (Option C: Hybrid background optimization)
 // ============================================================================

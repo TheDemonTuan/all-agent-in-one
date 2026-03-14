@@ -1,3 +1,3 @@
 // Export all modal components
-export { SettingsModal } from './SettingsModal';
-export { CustomTemplateModal } from './CustomTemplateModal';
+export { default as SettingsModal } from './SettingsModal.svelte';
+export { default as CustomTemplateModal } from './CustomTemplateModal.svelte';

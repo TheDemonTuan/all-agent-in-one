@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { CommandBlockData } from '../components/agents/CommandBlock';
+import type { CommandBlockData } from '../types/terminal';
 import { backendAPI } from '../services/wails-bridge';
 
 const COMMAND_HISTORY_STORAGE_KEY = 'terminal-command-history';

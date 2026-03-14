@@ -1,4 +1,4 @@
-import { AgentType, AgentAllocation } from './workspace';
+import type { AgentType, AgentAllocation } from './workspace';
 
 export type { AgentType, AgentAllocation };
 

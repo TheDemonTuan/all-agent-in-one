@@ -1,5 +1,7 @@
 // Export all workspace components
-export { WorkspaceTabBar } from './WorkspaceTabBar';
-export { WorkspaceSwitcherModal } from './WorkspaceSwitcherModal';
-export { WorkspaceCreationModal } from './WorkspaceCreationModal';
-export { LayoutSelector } from './LayoutSelector';
+export { default as WorkspaceTabBar } from './WorkspaceTabBar.svelte';
+export { default as WorkspaceSwitcherModal } from './WorkspaceSwitcherModal.svelte';
+export { default as WorkspaceCreationModal } from './WorkspaceCreationModal.svelte';
+export { default as LayoutSelector } from './LayoutSelector.svelte';
+export { default as AgentItem } from './AgentItem.svelte';
+export { default as TemplateCard } from './TemplateCard.svelte';

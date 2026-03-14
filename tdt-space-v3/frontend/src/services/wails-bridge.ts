@@ -25,7 +25,8 @@ import * as VietnameseIMEService from '../../bindings/tdt-space/internal/service
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as StoreServiceImpl from '../../bindings/tdt-space/internal/services/storeserviceimpl';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
-import { DialogOptions, SpawnTerminalOptions, SpawnAgentOptions } from '../../bindings/tdt-space/internal/services/models';
+// @ts-ignore - Wails v3 generates JS only, no .d.ts files
+import { DialogOptions, SpawnTerminalOptions, SpawnAgentOptions, IMESettings } from '../../bindings/tdt-space/internal/services/models';
 
 import type { AgentConfig } from '../types/workspace';
 
@@ -312,7 +313,7 @@ function createWailsBridge(): BackendAPI {
     }, { success: false, message: 'Failed to apply patch', version: undefined, processesKilled: undefined }),
     checkVietnameseImePatchStatus: ()          => safeCall(async () => {
       const r = await App.CheckVietnameseImePatchStatus();
-      const claudeInstalled = r.ClaudeCodeInstalled ?? r.claudeCodeInstalled ?? r.claude_code_installed ?? false;
+      const claudeInstalled = r.claude_code_installed ?? false;
       return {
         isPatched: r.isPatched ?? false,
         claudePath: r.claudePath ?? '',
@@ -328,9 +329,10 @@ function createWailsBridge(): BackendAPI {
       return {
         enabled: r.enabled ?? false,
         autoPatch: r.autoPatch ?? false,
+        patchedVersion: r.patchedVersion ?? undefined,
       };
-    }, { enabled: false, autoPatch: false }),
-    setVietnameseImeSettings:      (settings)  => safeCall(async () => {
+    }, { enabled: false, autoPatch: false, patchedVersion: undefined }),
+    setVietnameseImeSettings:      (settings: IMESettings)  => safeCall(async () => {
       await App.SetVietnameseImeSettings(settings);
       return { success: true as boolean, error: undefined as string | undefined };
     }, { success: false, error: 'Failed to save settings' }),

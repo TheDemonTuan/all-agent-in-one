@@ -1,3 +1,106 @@
+/**
+ * TDT Space - Global Styles
+ * Main entry point for all styles
+ */
+
+/* Import design system */
+@import './styles/theme.css';
+@import './styles/animations.css';
+@import './styles/components.css';
+
+/* ============================================
+   XTERM OVERRIDES
+   ============================================ */
+
+.xterm {
+  /* Padding removed to prevent extra space around terminal content */
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background: var(--color-bg-mantle);
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--color-bg-surface1);
+  border-radius: var(--radius-sm);
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: var(--color-bg-surface2);
+}
+
+/* ============================================
+   TERMINAL CELL OVERRIDES
+   ============================================ */
+
+.terminal-cell {
+  transition: all var(--transition-normal) var(--ease-default);
+}
+
+.terminal-cell:hover:not(.active) {
+  border-color: var(--color-border-hover) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.terminal-cell:hover:not(.active) .close-button,
+.terminal-cell:hover:not(.active) .tab-to-focus-hint {
+  opacity: 1 !important;
+}
+
+.terminal-cell.active {
+  box-shadow: 0 0 0 2px rgba(137, 180, 250, 0.3), 
+              var(--shadow-glow-blue) !important;
+  border-color: var(--color-accent-blue) !important;
+}
+
+/* Close button hover effect */
+.close-button:hover {
+  background-color: var(--color-error) !important;
+  color: white !important;
+}
+
+/* ============================================
+   PANEL RESIZE HANDLES
+   ============================================ */
+
+[data-separator] {
+  transition: background-color var(--transition-fast) var(--ease-default);
+  background-color: rgba(69, 71, 90, 0.2);
+}
+
+[data-separator]:hover {
+  background-color: rgba(137, 180, 250, 0.5);
+}
+
+[data-separator][data-panel-group-orientation="vertical"] {
+  height: 4px;
+}
+
+[data-separator][data-panel-group-orientation="horizontal"] {
+  width: 4px;
+}
+
+/* ============================================
+   CUSTOM TITLE BAR - Drag region
+   ============================================ */
+
+.title-bar {
+  -webkit-app-region: drag;
+}
+
+.title-bar button,
+.title-bar * {
+  -webkit-app-region: no-drag;
+}
+
+/* ============================================
+   GLOBAL RESETS
+   ============================================ */
+
 * {
   margin: 0;
   padding: 0;
@@ -11,100 +114,54 @@ html, body, #root {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--font-normal);
+  line-height: var(--leading-normal);
+  color: var(--color-text);
+  background-color: var(--color-bg-base);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-.terminal-cell {
-  transition: all 0.2s ease;
+/* ============================================
+   SELECTION STYLES
+   ============================================ */
+
+::selection {
+  background-color: var(--color-primary);
+  color: var(--color-bg-base);
 }
 
-.terminal-cell:hover:not(.active) {
-  border-color: #45475acc !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+/* ============================================
+   FOCUS VISIBLE
+   ============================================ */
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
-.terminal-cell:hover:not(.active) .close-button,
-.terminal-cell:hover:not(.active) .tab-to-focus-hint {
-  opacity: 1 !important;
+/* ============================================
+   PLACEHOLDER STYLES
+   ============================================ */
+
+::placeholder {
+  color: var(--color-text-overlay0);
 }
 
-.terminal-cell.active {
-  box-shadow: 0 0 0 2px rgba(137, 180, 250, 0.3), 0 4px 16px rgba(137, 180, 250, 0.2) !important;
+/* ============================================
+   RESPONSIVE UTILITIES
+   ============================================ */
+
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 220px;
+  }
 }
 
-/* Close button hover effect */
-.close-button:hover {
-  background-color: #f38ba8 !important;
-  color: #ffffff !important;
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: #181825;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #45475a;
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #585b70;
-}
-
-/* Xterm overrides */
-.xterm {
-  padding: 4px;
-}
-
-.xterm-viewport::-webkit-scrollbar {
-  width: 10px;
-}
-
-.xterm-viewport::-webkit-scrollbar-track {
-  background: #181825;
-}
-
-.xterm-viewport::-webkit-scrollbar-thumb {
-  background: #45475a;
-  border-radius: 5px;
-}
-
-/* Panel resize handles - thin and subtle */
-[data-separator] {
-  transition: background-color 0.15s ease;
-  background-color: rgba(69, 71, 90, 0.2);
-}
-
-[data-separator]:hover {
-  background-color: rgba(137, 180, 250, 0.5);
-}
-
-/* Horizontal resize handle (between rows - vertical group) */
-[data-separator][data-panel-group-orientation="vertical"] {
-  height: 4px;
-}
-
-/* Vertical resize handle (between columns - horizontal group) */
-[data-separator][data-panel-group-orientation="horizontal"] {
-  width: 4px;
-}
-
-/* Custom title bar - enable dragging */
-.title-bar {
-  -webkit-app-region: drag;
-}
-
-.title-bar button,
-.title-bar * {
-  -webkit-app-region: no-drag;
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 200px;
+  }
 }
