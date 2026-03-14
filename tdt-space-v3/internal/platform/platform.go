@@ -111,11 +111,20 @@ func KillProcessTree(pid int) error {
 
 		cmd := exec.CommandContext(ctx, "taskkill", "/f", "/t", "/pid", fmt.Sprintf("%d", pid))
 		cmd.SysProcAttr = HiddenWindowAttr()
-		err := cmd.Run()
+		out, err := cmd.CombinedOutput()
 		if ctx.Err() == context.DeadlineExceeded {
 			return fmt.Errorf("taskkill timed out for pid %d after %s: %w", pid, taskkillTimeout, context.DeadlineExceeded)
 		}
 		if err != nil {
+			// Exit code 128 = process not found (already exited) - this is OK
+			if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 128 {
+				return nil
+			}
+			// Also check output for "not found" messages
+			outStr := strings.ToLower(string(out))
+			if strings.Contains(outStr, "not found") || strings.Contains(outStr, "không tìm thấy") {
+				return nil
+			}
 			return fmt.Errorf("taskkill failed for pid %d: %w", pid, err)
 		}
 		return nil
