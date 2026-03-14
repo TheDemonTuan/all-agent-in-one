@@ -225,10 +225,11 @@
 </script>
 
 {#if isOpen}
-  <div class="modal-overlay" onclick={handleClose} role="dialog" aria-modal="true">
-    <div class="creation-modal" onclick={(e) => e.stopPropagation()}>
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="modal-overlay" onclick={handleClose} role="dialog" aria-modal="true" tabindex="-1">
+    <div class="creation-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" tabindex="-1">
       <div class="modal-header">
-        <h3>{editingWorkspace ? 'Edit Workspace' : 'Create New Workspace'}</h3>
+        <h3 id="creation-modal-title">{editingWorkspace ? 'Edit Workspace' : 'Create New Workspace'}</h3>
         <button class="close-btn" onclick={handleClose} aria-label="Close">×</button>
       </div>
 
@@ -255,18 +256,19 @@
             <!-- Left: Basic Settings -->
             <div class="settings-panel">
               <div class="form-group">
-                <label>Workspace Name</label>
-                <input type="text" bind:value={workspaceName} placeholder="My Workspace" />
+                <label for="workspace-name">Workspace Name</label>
+                <input id="workspace-name" type="text" bind:value={workspaceName} placeholder="My Workspace" />
               </div>
 
               <div class="form-group">
-                <label>Icon</label>
-                <div class="icon-grid">
+                <span id="workspace-icon-label" class="field-label">Icon</span>
+                <div class="icon-grid" role="group" aria-labelledby="workspace-icon-label">
                   {#each emojis as emoji}
                     <button
                       class="icon-btn"
                       class:selected={selectedIcon === emoji}
                       onclick={() => selectedIcon = emoji}
+                      aria-pressed={selectedIcon === emoji}
                     >
                       {emoji}
                     </button>
@@ -275,21 +277,21 @@
               </div>
 
               <div class="form-group">
-                <label>Working Directory</label>
+                <label for="workspace-dir">Working Directory</label>
                 <div class="dir-input-group">
-                  <input type="text" bind:value={workingDir} placeholder="./" />
-                  <button class="btn-browse" onclick={browseDirectory} title="Browse...">📁</button>
+                  <input id="workspace-dir" type="text" bind:value={workingDir} placeholder="./" />
+                  <button class="btn-browse" onclick={browseDirectory} title="Browse..." aria-label="Browse for directory">📁</button>
                 </div>
               </div>
 
               <div class="form-row">
                 <div class="form-group">
-                  <label>Columns</label>
-                  <input type="number" min="1" max="8" bind:value={columns} />
+                  <label for="workspace-columns">Columns</label>
+                  <input id="workspace-columns" type="number" min="1" max="8" bind:value={columns} />
                 </div>
                 <div class="form-group">
-                  <label>Rows</label>
-                  <input type="number" min="1" max="8" bind:value={rows} />
+                  <label for="workspace-rows">Rows</label>
+                  <input id="workspace-rows" type="number" min="1" max="8" bind:value={rows} />
                 </div>
               </div>
             </div>
@@ -498,7 +500,8 @@
     gap: 6px;
   }
 
-  .form-group label {
+  .form-group label,
+  .form-group .field-label {
     color: var(--color-text, #cdd6f4);
     font-size: 12px;
     font-weight: 500;

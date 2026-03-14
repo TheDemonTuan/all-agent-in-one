@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"log"
 	"runtime"
+	"strings"
+	"sync"
+	"time"
 
 	"tdt-space/internal/services"
 
@@ -21,6 +24,7 @@ type App struct {
 	terminalHistorySvc *services.TerminalHistoryService
 	vietnameseIMESvc   *services.VietnameseIMEService
 	app                *application.App
+	shutdownOnce       sync.Once
 }
 
 // NewApp creates a new App with required services.
@@ -61,32 +65,13 @@ func (a *App) ServiceStartup(ctx context.Context, options application.ServiceOpt
 // ServiceShutdown is called when the app shuts down.
 // This is a Wails v3 Service lifecycle method.
 func (a *App) ServiceShutdown() error {
-	log.Printf("[INFO] ServiceShutdown: cleaning up all terminals")
-
-	// Cleanup all terminals to ensure child processes are killed
-	if a.terminalSvc != nil {
-		a.terminalSvc.CleanupAllTerminals()
-	}
-
-	log.Printf("[INFO] ServiceShutdown: starting store close")
-
-	// Close the store to ensure all data is persisted
-	if a.storeSvc != nil {
-		a.storeSvc.Close()
-		log.Printf("[INFO] ServiceShutdown: store closed")
-	}
-
-	log.Printf("[INFO] ServiceShutdown: complete")
+	a.runShutdownSequence("service-shutdown")
 	return nil
 }
 
 // OnBeforeClose is called before the window is closed, returning true will prevent close.
 func (a *App) OnBeforeClose() bool {
-	// Cleanup terminals early, before Wails runtime starts shutting down
-	// This prevents blocking and event emission during shutdown
-	if a.terminalSvc != nil {
-		a.terminalSvc.CleanupAllTerminals()
-	}
+	log.Printf("[INFO] OnBeforeClose: close requested, allowing close without blocking cleanup")
 	return false
 }
 
@@ -114,7 +99,51 @@ func (a *App) WindowMaximize() {
 
 // WindowClose closes the app.
 func (a *App) WindowClose() {
-	a.app.Quit()
+	log.Printf("[INFO] WindowClose: close requested from frontend")
+	if a.app == nil {
+		log.Printf("[WARN] WindowClose: application instance is nil")
+		return
+	}
+
+	// Non-blocking close trigger to avoid waiting on shutdown work in an RPC call.
+	go func() {
+		if win := a.app.Window.Current(); win != nil {
+			win.Close()
+			return
+		}
+		a.app.Quit()
+	}()
+}
+
+func (a *App) runShutdownSequence(trigger string) {
+	a.shutdownOnce.Do(func() {
+		started := time.Now()
+		log.Printf("[INFO] Shutdown[%s]: begin", trigger)
+
+		if a.terminalSvc != nil {
+			phaseStart := time.Now()
+			log.Printf("[INFO] Shutdown[%s]: terminal cleanup begin", trigger)
+			result := a.terminalSvc.CleanupAllTerminals()
+			log.Printf("[INFO] Shutdown[%s]: terminal cleanup end cleaned=%d duration=%s", trigger, len(result.Cleaned), time.Since(phaseStart).Round(time.Millisecond))
+		} else {
+			log.Printf("[INFO] Shutdown[%s]: terminal cleanup skipped (service nil)", trigger)
+		}
+
+		if a.storeSvc != nil {
+			phaseStart := time.Now()
+			log.Printf("[INFO] Shutdown[%s]: store close begin", trigger)
+			a.storeSvc.Close()
+			log.Printf("[INFO] Shutdown[%s]: store close end duration=%s", trigger, time.Since(phaseStart).Round(time.Millisecond))
+		} else {
+			log.Printf("[INFO] Shutdown[%s]: store close skipped (service nil)", trigger)
+		}
+
+		log.Printf("[INFO] Shutdown[%s]: complete duration=%s", trigger, time.Since(started).Round(time.Millisecond))
+
+		if strings.Contains(strings.ToLower(version), "dev") {
+			log.Printf("[INFO] Shutdown[%s]: note exit status 0xc000013a in dev watcher logs usually means interrupt, not app crash", trigger)
+		}
+	})
 }
 
 // WindowIsMaximized returns whether the window is maximized.

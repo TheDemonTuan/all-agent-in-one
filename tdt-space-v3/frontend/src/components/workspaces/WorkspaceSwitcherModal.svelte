@@ -24,8 +24,9 @@
 </script>
 
 {#if isOpen}
-  <div class="switcher-overlay" onclick={onClose} role="dialog" aria-modal="true" aria-labelledby="switcher-title">
-    <div class="switcher-container" onclick={(e) => e.stopPropagation()}>
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="switcher-overlay" onclick={onClose} role="presentation">
+    <div class="switcher-container" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="switcher-title" tabindex="-1">
       <!-- Header -->
       <div class="switcher-header">
         <div class="header-icon-wrapper">

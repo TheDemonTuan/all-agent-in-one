@@ -39,6 +39,7 @@
   let searchOpen = $state(false);
   let spawnError = $state<string | null>(null);
   let userScrolledUp = $state(false);
+  let hasBeenActiveOnce = $state(false);
   let isHovered = $state(false);
   let showActions = $state(false);
 
@@ -477,7 +478,7 @@
           commandBuffer = '';
         }
 
-        if (!isActive && !userScrolledUp) {
+        if (hasBeenActiveOnce && isWorkspaceActive && !isActive && !userScrolledUp) {
           unreadCount++;
         }
       }
@@ -590,6 +591,10 @@
 
   // Active terminal effect - scroll to bottom and fetch backlog
   $effect(() => {
+    if (isActive) {
+      hasBeenActiveOnce = true;
+    }
+
     if (isActive && terminalInstance) {
       terminalInstance.scrollToBottom();
       unreadCount = 0;
@@ -629,11 +634,12 @@
   class:active={isActive}
   class:hovered={isHovered}
   onclick={onActivate}
+  onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && onActivate()}
   onmouseenter={() => { isHovered = true; showActions = true; }}
   onmouseleave={() => { isHovered = false; showActions = false; }}
   role="tabpanel"
   tabindex="0"
-  aria-selected={isActive}
+  aria-label="{terminal.title || 'Terminal'}"
 >
   <!-- Header -->
   <div class="terminal-header">

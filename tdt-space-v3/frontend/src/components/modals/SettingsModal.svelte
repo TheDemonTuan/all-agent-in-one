@@ -138,7 +138,8 @@
 </script>
 
 {#if isOpen}
-  <div class="modal-overlay" onclick={handleOverlayClick} role="dialog" aria-modal="true" aria-labelledby="settings-title">
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="modal-overlay" onclick={handleOverlayClick} role="dialog" aria-modal="true" aria-labelledby="settings-title" tabindex="-1">
     <div class="modal-container">
       <!-- Header -->
       <div class="modal-header">

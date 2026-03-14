@@ -8,7 +8,7 @@
  * Bindings: Auto-generated in ../bindings/ directory
  */
 
-import { Events, WML } from '@wailsio/runtime';
+import { Application, Events, WML, Window } from '@wailsio/runtime';
 // Auto-generated JS bindings from Wails v3 (no TypeScript declarations)
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as App from '../../bindings/tdt-space/app';
@@ -172,7 +172,14 @@ function createWailsBridge(): BackendAPI {
 
     windowMinimize: async () => { await App.WindowMinimize(); },
     windowMaximize: async () => { await App.WindowMaximize(); },
-    windowClose:    async () => { await App.WindowClose(); },
+    windowClose:    async () => {
+      try {
+        await Window.Close();
+      } catch (err) {
+        console.warn('[WailsBridge] Window.Close failed, falling back to Application.Quit', err);
+        await Application.Quit();
+      }
+    },
 
     getStoreValue:    (key) => {
       return safeCall(() => App.GetValue(key), null);

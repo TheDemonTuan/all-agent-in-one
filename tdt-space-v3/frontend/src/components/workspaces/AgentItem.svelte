@@ -27,9 +27,12 @@
     onDecrement = () => {},
   }: Props = $props();
 
-  let inputValue = $state(count.toString());
+  let inputValue = $state('');
   let isEditing = $state(false);
   let isDragging = $state(false);
+
+  // Get the current count value through a getter to avoid stale closure
+  let getCount = $derived(() => count);
 
   // Sync inputValue when count changes externally
   $effect(() => {
@@ -41,10 +44,11 @@
   function handleBlur() {
     isEditing = false;
     const num = parseInt(inputValue);
+    const currentCount = getCount();
     if (!isNaN(num) && num >= 0 && num <= max) {
       onChange(num);
     } else {
-      inputValue = count.toString();
+      inputValue = currentCount.toString();
     }
   }
 
@@ -58,16 +62,18 @@
   }
 
   function increment() {
-    if (count < max) {
+    const currentCount = getCount();
+    if (currentCount < max) {
       onIncrement();
-      inputValue = (count + 1).toString();
+      inputValue = (currentCount + 1).toString();
     }
   }
 
   function decrement() {
-    if (count > 0) {
+    const currentCount = getCount();
+    if (currentCount > 0) {
       onDecrement();
-      inputValue = (count - 1).toString();
+      inputValue = (currentCount - 1).toString();
     }
   }
 

@@ -39,32 +39,35 @@
 </script>
 
 {#if isOpen}
-  <div class="modal-overlay" onclick={onClose}>
-    <div class="custom-template-modal" onclick={(e) => e.stopPropagation()}>
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="modal-overlay" onclick={onClose} role="presentation">
+    <div class="custom-template-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="template-modal-title" tabindex="-1">
       <div class="modal-header">
-        <h3>Save Custom Template</h3>
-        <button class="close-btn" onclick={onClose}>×</button>
+        <h3 id="template-modal-title">Save Custom Template</h3>
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <button class="close-btn" onclick={onClose} aria-label="Close">×</button>
       </div>
 
       <div class="modal-body">
         <div class="form-group">
-          <label>Template Name</label>
-          <input type="text" bind:value={templateName} placeholder="My Template" />
+          <label for="template-name">Template Name</label>
+          <input id="template-name" type="text" bind:value={templateName} placeholder="My Template" />
         </div>
 
         <div class="form-group">
-          <label>Description</label>
-          <input type="text" bind:value={templateDescription} placeholder="Custom workspace layout" />
+          <label for="template-description">Description</label>
+          <input id="template-description" type="text" bind:value={templateDescription} placeholder="Custom workspace layout" />
         </div>
 
         <div class="form-group">
-          <label>Icon</label>
-          <div class="icon-grid">
+          <span id="icon-label" class="field-label">Icon</span>
+          <div class="icon-grid" role="group" aria-labelledby="icon-label">
             {#each emojis as emoji}
               <button
                 class="icon-btn"
                 class:selected={selectedIcon === emoji}
                 onclick={() => selectedIcon = emoji}
+                aria-pressed={selectedIcon === emoji}
               >
                 {emoji}
               </button>
@@ -74,18 +77,18 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label>Columns</label>
-            <input type="number" min="1" max="8" bind:value={columns} />
+            <label for="template-columns">Columns</label>
+            <input id="template-columns" type="number" min="1" max="8" bind:value={columns} />
           </div>
           <div class="form-group">
-            <label>Rows</label>
-            <input type="number" min="1" max="8" bind:value={rows} />
+            <label for="template-rows">Rows</label>
+            <input id="template-rows" type="number" min="1" max="8" bind:value={rows} />
           </div>
         </div>
 
         <div class="preview">
-          <label>Preview</label>
-          <div class="grid-preview" style="--cols: {columns}; --rows: {rows};">
+          <span id="preview-label" class="field-label">Preview</span>
+          <div class="grid-preview" style="--cols: {columns}; --rows: {rows};" role="img" aria-label="Grid preview">
             {#each Array(columns * rows) as _, i}
               <div class="grid-cell">{i + 1}</div>
             {/each}
@@ -159,7 +162,8 @@
     gap: 8px;
   }
 
-  .form-group label {
+  .form-group label,
+  .form-group .field-label {
     color: #cdd6f4;
     font-size: 13px;
     font-weight: 500;
@@ -205,7 +209,7 @@
     border-color: #89b4fa;
   }
 
-  .preview label {
+  .preview .field-label {
     color: #cdd6f4;
     font-size: 13px;
     font-weight: 500;

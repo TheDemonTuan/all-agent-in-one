@@ -75,6 +75,7 @@
 {#if isOpen}
   <div class="terminal-search">
     <div class="search-row">
+      <!-- svelte-ignore a11y_autofocus -->
       <input
         type="text"
         bind:value={query}

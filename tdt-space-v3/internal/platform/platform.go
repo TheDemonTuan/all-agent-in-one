@@ -3,6 +3,7 @@
 package platform
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 )
 
 // ============================================================================
@@ -103,9 +105,20 @@ func GetConfigDir() string {
 // Unix:    kills the process group
 func KillProcessTree(pid int) error {
 	if IsWindows() {
-		cmd := exec.Command("taskkill", "/f", "/t", "/pid", fmt.Sprintf("%d", pid))
+		const taskkillTimeout = 5 * time.Second
+		ctx, cancel := context.WithTimeout(context.Background(), taskkillTimeout)
+		defer cancel()
+
+		cmd := exec.CommandContext(ctx, "taskkill", "/f", "/t", "/pid", fmt.Sprintf("%d", pid))
 		cmd.SysProcAttr = HiddenWindowAttr()
-		return cmd.Run()
+		err := cmd.Run()
+		if ctx.Err() == context.DeadlineExceeded {
+			return fmt.Errorf("taskkill timed out for pid %d after %s: %w", pid, taskkillTimeout, context.DeadlineExceeded)
+		}
+		if err != nil {
+			return fmt.Errorf("taskkill failed for pid %d: %w", pid, err)
+		}
+		return nil
 	}
 	return killUnixProcessGroup(pid)
 }

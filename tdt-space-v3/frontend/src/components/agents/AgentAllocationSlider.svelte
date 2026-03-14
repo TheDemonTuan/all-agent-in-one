@@ -7,8 +7,18 @@
 
   let { label, value, onChange }: Props = $props();
 
-  let inputValue = $state(value.toString());
+  let inputValue = $state('');
   let isEditing = $state(false);
+
+  // Sync inputValue when value prop changes
+  $effect(() => {
+    if (!isEditing) {
+      inputValue = value.toString();
+    }
+  });
+
+  // Get the current value through a getter to avoid stale closure
+  let getValue = $derived(() => value);
 
   function handleInputChange(e: Event) {
     const target = e.target as HTMLInputElement;
@@ -22,20 +32,23 @@
   function handleBlur() {
     isEditing = false;
     const num = parseInt(inputValue);
+    const currentValue = getValue();
     if (isNaN(num) || num < 0) {
-      inputValue = value.toString();
+      inputValue = currentValue.toString();
     }
   }
 
   function increment() {
-    onChange(value + 1);
-    inputValue = (value + 1).toString();
+    const currentValue = getValue();
+    onChange(currentValue + 1);
+    inputValue = (currentValue + 1).toString();
   }
 
   function decrement() {
-    if (value > 0) {
-      onChange(value - 1);
-      inputValue = (value - 1).toString();
+    const currentValue = getValue();
+    if (currentValue > 0) {
+      onChange(currentValue - 1);
+      inputValue = (currentValue - 1).toString();
     }
   }
 </script>

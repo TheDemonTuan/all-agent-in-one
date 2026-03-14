@@ -23,6 +23,7 @@
   let theme = $derived(workspaceStore.theme);
   let workspace = $derived(workspaceStore.currentWorkspace);
   let workspaces = $derived(workspaceStore.workspaces);
+  let sidebarVisible = $derived(workspaceStore.sidebarVisible);
 
   // Workspace navigation helpers
   function nextWorkspace() {
@@ -57,6 +58,13 @@
 
   // Keyboard shortcuts handler
   function handleKeyDown(e: KeyboardEvent) {
+    // Toggle sidebar with Ctrl+B
+    if (e.ctrlKey && (e.key === 'b' || e.key === 'B')) {
+      e.preventDefault();
+      workspaceStore.toggleSidebar();
+      return;
+    }
+
     // Don't trigger shortcuts when typing in input fields
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
       return;
@@ -230,7 +238,22 @@
     <Sidebar
       onCreateWorkspace={handleCreateWorkspace}
       onOpenSettings={handleOpenSettings}
+      sidebarVisible={sidebarVisible}
     />
+
+    <!-- Edge Handle / Sidebar Rail (shown when sidebar is hidden) -->
+    {#if !sidebarVisible}
+      <div
+        class="sidebar-edge-handle"
+        onclick={() => workspaceStore.toggleSidebar()}
+        onkeydown={(e) => e.key === 'Enter' && workspaceStore.toggleSidebar()}
+        role="button"
+        tabindex="0"
+        title="Show Sidebar (Ctrl+B)"
+      >
+        <div class="edge-handle-bar"></div>
+      </div>
+    {/if}
 
     <!-- Main Content Area -->
     <main class="main-content">
@@ -593,5 +616,41 @@
 
   .main-content::-webkit-scrollbar-thumb:hover {
     background: var(--color-bg-surface2);
+  }
+
+  /* Edge Handle / Sidebar Rail */
+  .sidebar-edge-handle {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 8px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: var(--z-sticky);
+    background: transparent;
+    transition: background-color var(--transition-fast), width var(--transition-fast);
+  }
+
+  .sidebar-edge-handle:hover {
+    background-color: var(--color-bg-surface0);
+    width: 12px;
+  }
+
+  .edge-handle-bar {
+    width: 3px;
+    height: 48px;
+    background-color: var(--color-border);
+    border-radius: var(--radius-full);
+    opacity: 0.4;
+    transition: opacity var(--transition-fast), background-color var(--transition-fast), height var(--transition-fast);
+  }
+
+  .sidebar-edge-handle:hover .edge-handle-bar {
+    opacity: 1;
+    background-color: var(--color-accent);
+    height: 64px;
   }
 </style>

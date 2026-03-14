@@ -14,11 +14,13 @@
 </script>
 
 {#if isOpen}
-  <div class="guide-overlay" onclick={onClose}>
-    <div class="guide-modal" onclick={(e) => e.stopPropagation()}>
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div class="guide-overlay" onclick={onClose} role="presentation">
+    <div class="guide-modal" onclick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="guide-title" tabindex="-1">
       <div class="guide-header">
-        <h3>📦 AI Agents Installation Guide</h3>
-        <button class="close-btn" onclick={onClose}>×</button>
+        <h3 id="guide-title">📦 AI Agents Installation Guide</h3>
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <button class="close-btn" onclick={onClose} aria-label="Close">×</button>
       </div>
 
       <div class="guide-content">

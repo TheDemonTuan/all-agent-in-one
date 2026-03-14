@@ -109,6 +109,7 @@ class WorkspaceStore {
   isWorkspaceModalOpen = $state(false);
   editingWorkspace = $state<WorkspaceLayout | null>(null);
   restartingTerminals = $state<Set<string>>(new Set());
+  sidebarVisible = $state<boolean>(true);
 
   // Derived state
   activeTerminal = $derived(
@@ -153,6 +154,16 @@ class WorkspaceStore {
   setCurrentWorkspace(workspace: WorkspaceLayout | null): void {
     const previousWorkspaceId = this.currentWorkspace?.id ?? null;
     this.currentWorkspace = workspace;
+
+    const terminals = workspace?.terminals ?? [];
+    if (terminals.length === 0) {
+      this.activeTerminalId = null;
+    } else {
+      const activeStillExists = this.activeTerminalId
+        ? terminals.some(t => t.id === this.activeTerminalId)
+        : false;
+      this.activeTerminalId = activeStillExists ? this.activeTerminalId : terminals[0].id;
+    }
 
     if (previousWorkspaceId && previousWorkspaceId !== workspace?.id) {
       backendAPI.setWorkspaceActive(previousWorkspaceId, false).catch((err: any) => {
@@ -659,6 +670,14 @@ class WorkspaceStore {
       .catch((err) => {
         console.error('[WorkspaceStore] Failed to save after swap terminals:', err);
       });
+  }
+
+  toggleSidebar(): void {
+    this.sidebarVisible = !this.sidebarVisible;
+  }
+
+  setSidebarVisible(visible: boolean): void {
+    this.sidebarVisible = visible;
   }
 }
 

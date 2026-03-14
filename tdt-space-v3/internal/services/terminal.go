@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -49,6 +50,12 @@ type TerminalServiceImpl struct {
 	workspaceActiveMu sync.RWMutex
 	workspaceActive   map[string]bool // workspaceID -> active state
 }
+
+var (
+	errPTYCloseTimeout        = errors.New("pty close timed out")
+	errProcessWaitTimeout     = errors.New("process wait timed out")
+	errKillProcessTreeTimeout = errors.New("process tree kill timed out")
+)
 
 // NewTerminalServiceImpl creates a new TerminalServiceImpl.
 func NewTerminalServiceImpl() *TerminalServiceImpl {
@@ -350,6 +357,8 @@ func (t *TerminalServiceImpl) KillTerminal(id string) KillResult {
 
 // CleanupAllTerminals kills all active PTY processes.
 func (t *TerminalServiceImpl) CleanupAllTerminals() CleanupResult {
+	started := time.Now()
+
 	t.mu.Lock()
 	t.shuttingDown = true
 	ids := make([]string, 0, len(t.processes))
@@ -360,14 +369,33 @@ func (t *TerminalServiceImpl) CleanupAllTerminals() CleanupResult {
 
 	log.Printf("[INFO] CleanupAllTerminals: starting cleanup for %d terminals", len(ids))
 
+	if len(ids) == 0 {
+		log.Printf("[INFO] CleanupAllTerminals: no terminals to clean")
+		log.Printf("[INFO] CleanupAllTerminals: summary success=0 failed=0 timeout=0 duration=%s", time.Since(started).Round(time.Millisecond))
+		return CleanupResult{Success: true, Cleaned: ids}
+	}
+
+	type cleanupAttempt struct {
+		id       string
+		err      error
+		duration time.Duration
+	}
+
 	// Kill all processes concurrently with overall timeout
 	var wg sync.WaitGroup
+	results := make(chan cleanupAttempt, len(ids))
 	for _, id := range ids {
 		wg.Add(1)
 		go func(id string) {
 			defer wg.Done()
 			log.Printf("[INFO] CleanupAllTerminals: killing terminal %s", id)
+			attemptStart := time.Now()
 			err := t.killProcess(id)
+			results <- cleanupAttempt{
+				id:       id,
+				err:      err,
+				duration: time.Since(attemptStart),
+			}
 			if err != nil {
 				log.Printf("[ERROR] CleanupAllTerminals: failed to kill terminal %s: %v", id, err)
 			} else {
@@ -376,17 +404,50 @@ func (t *TerminalServiceImpl) CleanupAllTerminals() CleanupResult {
 		}(id)
 	}
 
-	// Wait with timeout - increased to 10s for process tree killing
-	done := make(chan struct{})
-	go func() {
+	cleanupTimeout := 10 * time.Second
+	timeoutCh := time.After(cleanupTimeout)
+	completed := 0
+	successCount := 0
+	failCount := 0
+	timeoutCount := 0
+	overallTimedOut := false
+
+	for completed < len(ids) {
+		select {
+		case attempt := <-results:
+			completed++
+			if attempt.err != nil {
+				failCount++
+				if isTimeoutError(attempt.err) {
+					timeoutCount++
+				}
+				continue
+			}
+			successCount++
+		case <-timeoutCh:
+			overallTimedOut = true
+			pending := len(ids) - completed
+			log.Printf("[WARN] CleanupAllTerminals: overall timeout after %s (completed=%d pending=%d)", cleanupTimeout, completed, pending)
+			// Stop waiting but allow in-flight goroutines to finish in background.
+			completed = len(ids)
+		}
+	}
+
+	if !overallTimedOut {
 		wg.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
 		log.Printf("[INFO] CleanupAllTerminals: all terminals cleaned up")
-	case <-time.After(10 * time.Second):
-		log.Printf("[WARN] CleanupAllTerminals timed out after 10s, some processes may still be running")
+	}
+
+	log.Printf(
+		"[INFO] CleanupAllTerminals: summary success=%d failed=%d timeout=%d duration=%s",
+		successCount,
+		failCount,
+		timeoutCount,
+		time.Since(started).Round(time.Millisecond),
+	)
+
+	if overallTimedOut {
+		log.Printf("[WARN] CleanupAllTerminals: timeout reached, some process cleanup may still be finishing")
 	}
 
 	return CleanupResult{Success: true, Cleaned: ids}
@@ -452,6 +513,8 @@ func (t *TerminalServiceImpl) killProcess(id string) error {
 		return nil
 	}
 
+	var killErrors []error
+
 	if proc.batcher != nil {
 		proc.batcher.stop(shuttingDown) // Pass flag to batcher
 	}
@@ -459,22 +522,33 @@ func (t *TerminalServiceImpl) killProcess(id string) error {
 	proc.cancelFunc()
 
 	// Close PTY with timeout to prevent blocking during shutdown
-	closeDone := make(chan struct{})
+	closeDone := make(chan error, 1)
 	go func() {
-		proc.pty.Close()
-		close(closeDone)
+		closeDone <- proc.pty.Close()
 	}()
 	select {
-	case <-closeDone:
+	case closeErr := <-closeDone:
+		if closeErr != nil {
+			log.Printf("[ERROR] PTY.Close() failed for terminal %s: %v", id, closeErr)
+			killErrors = append(killErrors, fmt.Errorf("pty close failed: %w", closeErr))
+		}
 	case <-time.After(2 * time.Second):
 		log.Printf("[WARN] PTY.Close() timed out for terminal %s", id)
+		killErrors = append(killErrors, fmt.Errorf("%w: terminal %s", errPTYCloseTimeout, id))
 	}
 
 	// Always kill process tree - ConPTY's Close() does NOT kill child processes
 	// This is critical for proper cleanup when app closes
 	if proc.cmd != nil && proc.cmd.Process != nil {
 		log.Printf("[INFO] Killing process tree via cmd.Process.Pid: %d", proc.cmd.Process.Pid)
-		platform.KillProcessTree(proc.cmd.Process.Pid)
+		if err := platform.KillProcessTree(proc.cmd.Process.Pid); err != nil {
+			log.Printf("[ERROR] KillProcessTree failed via cmd.Process.Pid for terminal %s: %v", id, err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				killErrors = append(killErrors, fmt.Errorf("%w: %v", errKillProcessTreeTimeout, err))
+			} else {
+				killErrors = append(killErrors, fmt.Errorf("kill process tree failed: %w", err))
+			}
+		}
 
 		done := make(chan struct{})
 		go func() {
@@ -485,13 +559,35 @@ func (t *TerminalServiceImpl) killProcess(id string) error {
 		case <-done:
 		case <-time.After(3 * time.Second):
 			log.Printf("[WARN] proc.cmd.Wait() timed out for terminal %s", id)
+			killErrors = append(killErrors, fmt.Errorf("%w: terminal %s", errProcessWaitTimeout, id))
 		}
 	} else if proc.pty.Pid > 0 {
 		log.Printf("[INFO] Killing process tree via pty.Pid: %d (ConPTY)", proc.pty.Pid)
-		platform.KillProcessTree(proc.pty.Pid)
+		if err := platform.KillProcessTree(proc.pty.Pid); err != nil {
+			log.Printf("[ERROR] KillProcessTree failed via pty.Pid for terminal %s: %v", id, err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				killErrors = append(killErrors, fmt.Errorf("%w: %v", errKillProcessTreeTimeout, err))
+			} else {
+				killErrors = append(killErrors, fmt.Errorf("kill process tree failed: %w", err))
+			}
+		}
+	}
+
+	if len(killErrors) > 0 {
+		return errors.Join(killErrors...)
 	}
 
 	return nil
+}
+
+func isTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, errPTYCloseTimeout) ||
+		errors.Is(err, errProcessWaitTimeout) ||
+		errors.Is(err, errKillProcessTreeTimeout)
 }
 
 func (t *TerminalServiceImpl) readPTYOutput(ctx context.Context, proc *ptyProcess) {
