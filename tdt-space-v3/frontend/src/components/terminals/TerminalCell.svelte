@@ -4,6 +4,7 @@
   import { FitAddon } from '@xterm/addon-fit';
   import { SearchAddon } from '@xterm/addon-search';
   import { WebLinksAddon } from '@xterm/addon-web-links';
+  import { WebglAddon } from '@xterm/addon-webgl';
   import '@xterm/xterm/css/xterm.css';
   import type { TerminalPane } from '../../types/workspace';
   import { workspaceStore } from '../../stores';
@@ -47,6 +48,8 @@
   let terminalInstance: Terminal | null = null;
   let fitAddon: FitAddon | null = null;
   let searchAddon = $state<SearchAddon | null>(null);
+  let webglAddon: WebglAddon | null = null;
+  let isWebGLActive = $state(false);
   let unsubscribers: Array<() => void> = [];
   let resizeObserverTimeout: ReturnType<typeof setTimeout> | null = null;
   let pendingResizeSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -66,6 +69,14 @@
   let writeBuffer = '';
   let writeRafScheduled = false;
   let writeRafId: number | null = null;
+  // Adaptive FPS capping for data floods
+  let lastWriteTime = 0;
+  let targetFps = 30;
+  const MIN_FPS = 15;
+  const MAX_FPS = 60;
+  const MAX_CHUNK_SIZE = 8192;
+  let writeTimeoutId: ReturnType<typeof setTimeout> | null = null;
+  let bufferPressureHistory: number[] = [];
   // Debounced command parsing to avoid parsing on every chunk
   let commandParseTimeout: ReturnType<typeof setTimeout> | null = null;
   let pendingCommandBuffer = '';
@@ -75,27 +86,71 @@
   let lastPrompt = $state('');
 
   // ============================================================================
-  // RAF-scheduled terminal write to prevent main thread blocking
+  // Adaptive FPS-scheduled terminal write to prevent main thread blocking
   // ============================================================================
   function flushWriteBuffer() {
     if (writeRafId !== null) {
       cancelAnimationFrame(writeRafId);
       writeRafId = null;
     }
+    if (writeTimeoutId !== null) {
+      clearTimeout(writeTimeoutId);
+      writeTimeoutId = null;
+    }
     if (terminalInstance && writeBuffer.length > 0) {
       terminalInstance.write(writeBuffer);
       writeBuffer = '';
     }
     writeRafScheduled = false;
+    lastWriteTime = performance.now();
+  }
+
+  function adjustFps(bufferPressure: number) {
+    // Track buffer pressure history for adaptive adjustment
+    bufferPressureHistory.push(bufferPressure);
+    if (bufferPressureHistory.length > 10) {
+      bufferPressureHistory.shift();
+    }
+
+    const avgPressure = bufferPressureHistory.reduce((a, b) => a + b, 0) / bufferPressureHistory.length;
+
+    // Adjust target FPS based on buffer pressure
+    if (avgPressure > 0.8 && targetFps > MIN_FPS) {
+      targetFps = Math.max(MIN_FPS, targetFps - 5);
+    } else if (avgPressure < 0.3 && targetFps < MAX_FPS) {
+      targetFps = Math.min(MAX_FPS, targetFps + 5);
+    }
   }
 
   function scheduleTerminalWrite(data: string) {
+    // Skip if terminal not active (optimization for background terminals)
+    if (!isWorkspaceActive) return;
+
     writeBuffer += data;
+
+    // Calculate buffer pressure (0-1)
+    const bufferPressure = Math.min(1, writeBuffer.length / MAX_CHUNK_SIZE);
+    adjustFps(bufferPressure);
+
+    const now = performance.now();
+    const elapsed = now - lastWriteTime;
+    const frameTime = 1000 / targetFps;
+
+    // Flush immediately if buffer is large enough or enough time has passed
+    if (writeBuffer.length >= MAX_CHUNK_SIZE || elapsed >= frameTime) {
+      flushWriteBuffer();
+      return;
+    }
+
+    // Schedule flush if not already scheduled
     if (!writeRafScheduled) {
       writeRafScheduled = true;
-      writeRafId = requestAnimationFrame(() => {
-        flushWriteBuffer();
-      });
+      // Use setTimeout for more predictable timing than RAF during data floods
+      writeTimeoutId = setTimeout(() => {
+        writeRafId = requestAnimationFrame(() => {
+          flushWriteBuffer();
+        });
+      }, frameTime - elapsed);
     }
   }
   // Theme
@@ -192,7 +247,26 @@
     terminalInstance.loadAddon(fitAddon);
     terminalInstance.loadAddon(searchAddon);
     terminalInstance.loadAddon(new WebLinksAddon());
+
+    // Try WebGL renderer first, fallback to canvas if it fails
+    try {
+      webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        console.warn('[TerminalCell] WebGL context lost, falling back to canvas');
+        isWebGLActive = false;
+      });
+      terminalInstance.loadAddon(webglAddon);
+      isWebGLActive = true;
+    } catch (e) {
+      console.warn('[TerminalCell] WebGL not available, using canvas renderer:', e);
+      isWebGLActive = false;
+    }
+
+    // Open terminal in DOM container
     terminalInstance.open(terminalContainerRef);
+
+    // Allow certain shortcuts to propagate to window/browser
+
 
     // Allow certain shortcuts to propagate to window/browser
     terminalInstance.attachCustomKeyEventHandler((event: KeyboardEvent) => {
@@ -609,8 +683,15 @@
       cancelAnimationFrame(writeRafId);
       writeRafId = null;
     }
+    if (writeTimeoutId !== null) {
+      clearTimeout(writeTimeoutId);
+      writeTimeoutId = null;
+    }
     writeBuffer = '';
     writeRafScheduled = false;
+    bufferPressureHistory = [];
+    lastWriteTime = 0;
+    targetFps = 30;
     // Clear command parse timeout
     if (commandParseTimeout) {
       clearTimeout(commandParseTimeout);
@@ -619,6 +700,16 @@
     pendingCommandBuffer = '';
     unsubscribers.forEach(unsub => unsub());
     unsubscribers = [];
+    // Dispose WebGL addon before terminal
+    if (webglAddon) {
+      try {
+        webglAddon.dispose();
+      } catch (e) {
+        console.warn('[TerminalCell] Error disposing WebGL addon:', e);
+      }
+      webglAddon = null;
+      isWebGLActive = false;
+    }
     terminalInstance?.dispose();
     backendAPI.terminalKill(terminal.id).catch(() => {});
   }
@@ -743,6 +834,19 @@
       needsPtySync = false;
 
       // Clear RAF write buffer and cancel pending frame
+      if (writeRafId !== null) {
+        cancelAnimationFrame(writeRafId);
+        writeRafId = null;
+      }
+      if (writeTimeoutId !== null) {
+        clearTimeout(writeTimeoutId);
+        writeTimeoutId = null;
+      }
+      writeBuffer = '';
+      writeRafScheduled = false;
+      bufferPressureHistory = [];
+      lastWriteTime = 0;
+      targetFps = 30;
       if (writeRafId !== null) {
         cancelAnimationFrame(writeRafId);
         writeRafId = null;
