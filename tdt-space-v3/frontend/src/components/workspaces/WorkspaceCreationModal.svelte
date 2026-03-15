@@ -3,6 +3,7 @@
   import type { Template, WorkspaceCreationConfig } from '../../types/workspace';
   import type { AgentType, AgentConfig } from '../../types/agent';
   import { backendAPI } from '../../services/wails-bridge';
+  import AgentItem from './AgentItem.svelte';
 
   interface Props {
     isOpen: boolean;
@@ -144,7 +145,7 @@
     const agentAssignments: Record<string, AgentConfig> = {};
     slotAssignments.forEach((agentType, index) => {
       if (agentType) {
-        agentAssignments[`slot-${index}`] = {
+        agentAssignments[`term-${index}`] = {
           type: agentType,
           enabled: true,
         };
@@ -333,21 +334,19 @@
               
               <!-- Agent Palette -->
               <div class="agent-palette">
-                <p class="hint">Drag agents to slots:</p>
+                <p class="hint">Drag agents to slots or use +/- buttons:</p>
                 <div class="agent-list">
                   {#each AGENT_CONFIGS as { type, name, icon }}
-                    <div
-                      class="agent-item"
-                      draggable={true}
-                      ondragstart={(e) => handleDragStart(e, type)}
-                      role="button"
-                      tabindex="0"
-                      title={name}
-                    >
-                      <span class="agent-icon">{icon}</span>
-                      <span class="agent-name">{name}</span>
-                      <span class="agent-count">{getAgentCount(type)}</span>
-                    </div>
+                    <AgentItem
+                      {type}
+                      {name}
+                      {icon}
+                      count={getAgentCount(type)}
+                      max={columns * rows}
+                      onIncrement={() => incrementAgent(type)}
+                      onDecrement={() => decrementAgent(type)}
+                      onDragStart={handleDragStart}
+                    />
                   {/each}
                 </div>
               </div>
@@ -707,45 +706,6 @@
     overflow-y: auto;
   }
 
-  .agent-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 6px 8px;
-    background: var(--color-bg-surface1, #313244);
-    border: 1px solid var(--color-border, #45475a);
-    border-radius: 6px;
-    cursor: grab;
-    transition: all 0.15s ease;
-    font-size: 12px;
-  }
-
-  .agent-item:hover {
-    background: var(--color-bg-surface2, #41435a);
-    border-color: var(--color-border-hover, #585b70);
-  }
-
-  .agent-icon {
-    font-size: 14px;
-  }
-
-  .agent-name {
-    flex: 1;
-    color: var(--color-text, #cdd6f4);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .agent-count {
-    font-size: 10px;
-    color: var(--color-text-subtext0, #6c7086);
-    background: var(--color-bg-base, #1e1e2e);
-    padding: 1px 4px;
-    border-radius: 3px;
-    min-width: 16px;
-    text-align: center;
-  }
 
   /* Footer */
   .modal-footer {

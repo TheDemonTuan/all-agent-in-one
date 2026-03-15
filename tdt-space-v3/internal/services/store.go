@@ -17,16 +17,20 @@ import (
 // StoreService — replaces electron-store + store.handlers.ts
 // ============================================================================
 
-// StoreServiceImpl manages persistent key-value storage using BuntDB.
-// BuntDB provides ACID transactions, atomic writes, and concurrent-safe access.
-// All data is stored in a single file at <configDir>/data.db
-type StoreServiceImpl struct {
+// storeServiceDB manages persistent key-value storage using BuntDB.
+// This unexported type avoids naming conflicts with generated bindings.
+type storeServiceDB struct {
 	db *buntdb.DB
 	mu sync.RWMutex
 }
 
-// NewStoreServiceImpl creates and initializes the StoreServiceImpl.
-func NewStoreServiceImpl() *StoreServiceImpl {
+// StoreService is an alias for the store implementation.
+// This allows other packages to reference *StoreService while avoiding
+// binding generation conflicts.
+type StoreService = storeServiceDB
+
+// NewStoreService creates and initializes the StoreService.
+func NewStoreService() *storeServiceDB {
 	configDir := platform.GetConfigDir()
 	dbPath := filepath.Join(configDir, "data.db")
 
@@ -56,17 +60,17 @@ func NewStoreServiceImpl() *StoreServiceImpl {
 		AutoShrinkPercentage: 10,
 	})
 
-	return &StoreServiceImpl{db: db}
+	return &storeServiceDB{db: db}
 }
 
 // GetDB returns the underlying BuntDB instance.
-func (s *StoreServiceImpl) GetDB() *buntdb.DB {
+func (s *storeServiceDB) GetDB() *buntdb.DB {
 	return s.db
 }
 
 // GetValue retrieves a JSON-decoded value by key.
 // Returns nil if key doesn't exist.
-func (s *StoreServiceImpl) GetValue(key string) interface{} {
+func (s *storeServiceDB) GetValue(key string) interface{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -85,7 +89,7 @@ func (s *StoreServiceImpl) GetValue(key string) interface{} {
 }
 
 // SetValue stores a JSON-encoded value by key.
-func (s *StoreServiceImpl) SetValue(key string, value interface{}) Result {
+func (s *storeServiceDB) SetValue(key string, value interface{}) Result {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -105,7 +109,7 @@ func (s *StoreServiceImpl) SetValue(key string, value interface{}) Result {
 }
 
 // DeleteValue removes a key from the store.
-func (s *StoreServiceImpl) DeleteValue(key string) Result {
+func (s *storeServiceDB) DeleteValue(key string) Result {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -123,7 +127,7 @@ func (s *StoreServiceImpl) DeleteValue(key string) Result {
 }
 
 // GetByPrefix returns all key-value pairs with the given prefix.
-func (s *StoreServiceImpl) GetByPrefix(prefix string) map[string]interface{} {
+func (s *storeServiceDB) GetByPrefix(prefix string) map[string]interface{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -142,7 +146,7 @@ func (s *StoreServiceImpl) GetByPrefix(prefix string) map[string]interface{} {
 }
 
 // SetRaw sets a raw string value (used internally by other services).
-func (s *StoreServiceImpl) SetRaw(key, value string) error {
+func (s *storeServiceDB) SetRaw(key, value string) error {
 	return s.db.Update(func(tx *buntdb.Tx) error {
 		_, _, err := tx.Set(key, value, nil)
 		return err
@@ -150,7 +154,7 @@ func (s *StoreServiceImpl) SetRaw(key, value string) error {
 }
 
 // GetRaw gets a raw string value (used internally by other services).
-func (s *StoreServiceImpl) GetRaw(key string) (string, error) {
+func (s *storeServiceDB) GetRaw(key string) (string, error) {
 	var val string
 	err := s.db.View(func(tx *buntdb.Tx) error {
 		var e error
@@ -161,7 +165,7 @@ func (s *StoreServiceImpl) GetRaw(key string) (string, error) {
 }
 
 // DeleteByPrefix removes all keys with the given prefix.
-func (s *StoreServiceImpl) DeleteByPrefix(prefix string) error {
+func (s *storeServiceDB) DeleteByPrefix(prefix string) error {
 	var keys []string
 	s.db.View(func(tx *buntdb.Tx) error {
 		tx.AscendKeys(prefix+"*", func(key, _ string) bool {
@@ -180,7 +184,7 @@ func (s *StoreServiceImpl) DeleteByPrefix(prefix string) error {
 }
 
 // Close closes the BuntDB database.
-func (s *StoreServiceImpl) Close() {
+func (s *storeServiceDB) Close() {
 	if s.db != nil {
 		s.db.Close()
 	}

@@ -60,6 +60,7 @@
   let lastObservedContainerSize: { width: number; height: number } | null = null;
   let needsPtySync = false;
   let lastLayoutSignature: string | null = null;
+  let scrollDebounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Command parsing state
   let commandBuffer = $state('');
@@ -175,10 +176,18 @@
 
     // Handle scroll to track if user scrolled up
     terminalInstance.onScroll((position) => {
-      const buffer = terminalInstance?.buffer.active;
-      if (buffer) {
-        userScrolledUp = position < buffer.baseY + buffer.cursorY;
+      if (scrollDebounceTimeout) {
+        clearTimeout(scrollDebounceTimeout);
       }
+      scrollDebounceTimeout = setTimeout(() => {
+        const buffer = terminalInstance?.buffer.active;
+        if (buffer && terminalInstance) {
+          const viewportBottom = position + terminalInstance.rows;
+          const isAtBottom = viewportBottom >= buffer.length - 2;
+          userScrolledUp = !isAtBottom;
+        }
+        scrollDebounceTimeout = null;
+      }, 50);
     });
   }
 
@@ -526,6 +535,10 @@
       clearTimeout(fallbackSpawnTimeout);
       fallbackSpawnTimeout = null;
     }
+    if (scrollDebounceTimeout) {
+      clearTimeout(scrollDebounceTimeout);
+      scrollDebounceTimeout = null;
+    }
     unsubscribers.forEach(unsub => unsub());
     unsubscribers = [];
     terminalInstance?.dispose();
@@ -544,6 +557,7 @@
   }
 
   function restartTerminal() {
+    spawnError = null;  // Reset error to allow retry
     workspaceStore.restartTerminal(terminal.id);
   }
 
@@ -577,7 +591,7 @@
   });
 
   $effect(() => {
-    if (terminalInstance && isWorkspaceActive && !hasStarted) {
+    if (terminalInstance && isWorkspaceActive && !hasStarted && !spawnError) {
       scheduleFallbackSpawn();
     }
   });
@@ -598,6 +612,14 @@
     if (isActive && terminalInstance) {
       terminalInstance.scrollToBottom();
       unreadCount = 0;
+      // Reset scroll state when becoming active
+      const buffer = terminalInstance?.buffer.active;
+      if (buffer) {
+        const currentPosition = terminalInstance.buffer.active.viewportY;
+        const viewportBottom = currentPosition + terminalInstance.rows;
+        const isAtBottom = viewportBottom >= buffer.length - 2;
+        userScrolledUp = !isAtBottom;
+      }
       fetchBacklog();
     }
   });

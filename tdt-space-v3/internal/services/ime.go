@@ -37,7 +37,7 @@ var (
 
 // VietnameseIMEService manages Vietnamese IME patching for Claude Code.
 type VietnameseIMEService struct {
-	store *StoreServiceImpl
+	store *StoreService
 }
 
 // NewVietnameseIMEService creates a new VietnameseIMEService.
@@ -46,7 +46,7 @@ func NewVietnameseIMEService() *VietnameseIMEService {
 }
 
 // Init wires the store dependency.
-func (v *VietnameseIMEService) Init(store *StoreServiceImpl) {
+func (v *VietnameseIMEService) Init(store *StoreService) {
 	v.store = store
 }
 

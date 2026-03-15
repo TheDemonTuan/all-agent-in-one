@@ -18,8 +18,8 @@ const workspacePrefix = "workspace:"
 
 // WorkspaceService manages workspace CRUD operations using BuntDB.
 type WorkspaceService struct {
-	store       *StoreServiceImpl
-	terminalSvc *TerminalServiceImpl
+	store       *StoreService
+	terminalSvc *TerminalService
 }
 
 // NewWorkspaceService creates a new WorkspaceService.
@@ -28,7 +28,7 @@ func NewWorkspaceService() *WorkspaceService {
 }
 
 // Init wires store and terminal service dependencies.
-func (w *WorkspaceService) Init(store *StoreServiceImpl, terminal *TerminalServiceImpl) {
+func (w *WorkspaceService) Init(store *StoreService, terminal *TerminalService) {
 	w.store = store
 	w.terminalSvc = terminal
 }
@@ -153,7 +153,7 @@ const templatePrefix = "template:"
 
 // TemplateService manages layout template CRUD operations.
 type TemplateService struct {
-	store *StoreServiceImpl
+	store *StoreService
 }
 
 // NewTemplateService creates a new TemplateService.
@@ -162,7 +162,7 @@ func NewTemplateService() *TemplateService {
 }
 
 // Init wires the store dependency.
-func (t *TemplateService) Init(store *StoreServiceImpl) {
+func (t *TemplateService) Init(store *StoreService) {
 	t.store = store
 }
 
@@ -222,7 +222,7 @@ const historyPrefix = "history:"
 
 // TerminalHistoryService manages command history per terminal.
 type TerminalHistoryService struct {
-	store *StoreServiceImpl
+	store *StoreService
 }
 
 // NewTerminalHistoryService creates a new TerminalHistoryService.
@@ -231,7 +231,7 @@ func NewTerminalHistoryService() *TerminalHistoryService {
 }
 
 // Init wires the store dependency.
-func (h *TerminalHistoryService) Init(store *StoreServiceImpl) {
+func (h *TerminalHistoryService) Init(store *StoreService) {
 	h.store = store
 }
 

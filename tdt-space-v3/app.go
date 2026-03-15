@@ -16,8 +16,8 @@ import (
 
 // App struct holds the application services.
 type App struct {
-	terminalSvc        *services.TerminalServiceImpl
-	storeSvc           *services.StoreServiceImpl
+	terminalSvc        *services.TerminalService
+	storeSvc           *services.StoreService
 	systemSvc          *services.SystemService
 	workspaceSvc       *services.WorkspaceService
 	templateSvc        *services.TemplateService
@@ -29,8 +29,8 @@ type App struct {
 
 // NewApp creates a new App with required services.
 func NewApp(
-	terminalSvc *services.TerminalServiceImpl,
-	storeSvc *services.StoreServiceImpl,
+	terminalSvc *services.TerminalService,
+	storeSvc *services.StoreService,
 	systemSvc *services.SystemService,
 	workspaceSvc *services.WorkspaceService,
 	templateSvc *services.TemplateService,

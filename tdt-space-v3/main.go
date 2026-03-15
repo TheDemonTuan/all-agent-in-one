@@ -15,9 +15,9 @@ var assets embed.FS
 // Version information - set via ldflags during build
 // Example: -ldflags="-X main.version=0.1.2 -X main.buildTime=2026-03-12"
 var (
-	version     = "0.1.2-dev"
-	buildTime   = "unknown"
-	gitCommit   = "unknown"
+	version   = "0.1.2-dev"
+	buildTime = "unknown"
+	gitCommit = "unknown"
 )
 
 func main() {
@@ -41,8 +41,8 @@ func main() {
 	})
 
 	// Create services AFTER app is created (dependency injection pattern)
-	storeSvc := services.NewStoreServiceImpl()
-	terminalSvc := services.NewTerminalServiceImpl()
+	storeSvc := services.NewStoreService()
+	terminalSvc := services.NewTerminalService()
 	workspaceSvc := services.NewWorkspaceService()
 	templateSvc := services.NewTemplateService()
 	terminalHistorySvc := services.NewTerminalHistoryService()

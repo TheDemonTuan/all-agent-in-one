@@ -13,7 +13,7 @@ import { Application, Events, WML, Window } from '@wailsio/runtime';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as App from '../../bindings/tdt-space/app';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
-import * as TerminalServiceImpl from '../../bindings/tdt-space/internal/services/terminalserviceimpl';
+import * as TerminalServiceImpl from '../../bindings/tdt-space/internal/services/terminalservicedb';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as WorkspaceService from '../../bindings/tdt-space/internal/services/workspaceservice';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
@@ -23,7 +23,7 @@ import * as SystemService from '../../bindings/tdt-space/internal/services/syste
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import * as VietnameseIMEService from '../../bindings/tdt-space/internal/services/vietnameseimeservice';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
-import * as StoreServiceImpl from '../../bindings/tdt-space/internal/services/storeserviceimpl';
+import * as StoreServiceImpl from '../../bindings/tdt-space/internal/services/storeservicedb';
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 // @ts-ignore - Wails v3 generates JS only, no .d.ts files
 import { DialogOptions, SpawnTerminalOptions, SpawnAgentOptions, IMESettings } from '../../bindings/tdt-space/internal/services/models';
