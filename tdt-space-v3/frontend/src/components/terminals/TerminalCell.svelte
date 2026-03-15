@@ -194,12 +194,26 @@
     terminalInstance.loadAddon(new WebLinksAddon());
     terminalInstance.open(terminalContainerRef);
 
-    // Allow Ctrl+B to propagate to window for sidebar toggle
+    // Allow certain shortcuts to propagate to window/browser
     terminalInstance.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-      // Let Ctrl+B propagate to window handler
+      // Let Ctrl+B propagate to window handler (sidebar toggle)
       if (event.ctrlKey && (event.key === 'b' || event.key === 'B')) {
         return false; // false = let browser handle it (propagate)
       }
+
+      // Let Ctrl+Tab/Ctrl+Shift+Tab propagate for workspace switching
+      if (event.ctrlKey && event.key === 'Tab') {
+        return false;
+      }
+
+      // Let Ctrl+C propagate when there's a selection (for copy)
+      if (event.ctrlKey && (event.key === 'c' || event.key === 'C')) {
+        const selection = terminalInstance?.getSelection();
+        if (selection && selection.length > 0) {
+          return false; // Let browser handle copy
+        }
+      }
+
       return true; // true = xterm.js handles it
     });
 
@@ -725,11 +739,37 @@
       hasStarted = false;
       lastAppliedSize = null;
       lastSyncedSize = null;
+      lastMeasuredSize = null;
       needsPtySync = false;
 
-      // Clear terminal to prevent duplicate text
+      // Clear RAF write buffer and cancel pending frame
+      if (writeRafId !== null) {
+        cancelAnimationFrame(writeRafId);
+        writeRafId = null;
+      }
+      writeBuffer = '';
+      writeRafScheduled = false;
+
+      // Clear command parse timeout and buffers
+      if (commandParseTimeout) {
+        clearTimeout(commandParseTimeout);
+        commandParseTimeout = null;
+      }
+      pendingCommandBuffer = '';
+      commandBuffer = '';
+
+      // Reset terminal completely (clear visible + scrollback buffer)
       if (terminalInstance) {
         terminalInstance.clear();
+        terminalInstance.reset();
+      }
+    }
+
+    // Detect transition from 'stopped' to 'running' (after restart)
+    if (currentStatus === 'running' && previousStatus === 'stopped') {
+      // Force re-fit to ensure proper sizing after restart
+      if (terminalInstance && isWorkspaceActive) {
+        queueFit(100);
       }
     }
 

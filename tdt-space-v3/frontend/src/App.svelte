@@ -275,32 +275,59 @@
       {#if workspaces.length > 0}
         <!-- Header for current workspace -->
         <div class="content-header">
-          <div class="workspace-header">
+          <div class="header-left">
             <span class="header-icon">{workspace?.icon || '📁'}</span>
-            <div class="header-info">
-              <h1 class="header-title">{workspace?.name || 'Workspace'}</h1>
-              <span class="header-meta">
-                {workspace?.columns || 0}×{workspace?.rows || 0} layout • {workspace?.terminals?.length || 0} terminals
+            <span class="header-title" title={workspace?.name}>
+              {workspace?.name || 'Workspace'}
+            </span>
+            <div class="header-meta-group" title="{workspace?.columns || 0}×{workspace?.rows || 0} layout • {workspace?.terminals?.length || 0} terminals">
+              <span class="header-meta-item">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+                {workspace?.columns || 0}×{workspace?.rows || 0}
+              </span>
+              <span class="meta-separator">•</span>
+              <span class="header-meta-item">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="4 17 10 11 4 5"></polyline>
+                  <line x1="12" y1="19" x2="20" y2="19"></line>
+                </svg>
+                {workspace?.terminals?.length || 0}
               </span>
             </div>
           </div>
 
           <div class="header-actions">
             <button
-              class="header-btn"
+              class="header-btn-icon"
               onclick={() => {
                 if (workspace) {
                   workspaceStore.setWorkspaceModalOpenWithEdit(workspace);
                 }
               }}
-              title="Edit Layout"
+              title="Edit Workspace (Ctrl+Shift+N for new)"
               disabled={!workspace}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                 <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
               </svg>
-              <span>Edit</span>
+            </button>
+            <button
+              class="header-btn-icon danger"
+              onclick={() => workspaceStore.killAllTerminals()}
+              title="Kill All Terminals"
+              disabled={!workspace || workspace.terminals.length === 0}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="9" y1="9" x2="15" y2="15"></line>
+                <line x1="15" y1="9" x2="9" y2="15"></line>
+              </svg>
             </button>
           </div>
         </div>
@@ -403,71 +430,112 @@
     min-width: 0;
   }
 
-  /* Content Header */
+  /* Content Header - Compact Design */
   .content-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-4) var(--space-6);
-    border-bottom: 1px solid var(--color-border);
+    height: 36px;
+    padding: 0 var(--space-3);
     background-color: var(--color-bg-mantle);
+    border-bottom: none;
+    flex-shrink: 0;
   }
 
-  .workspace-header {
+  .header-left {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    gap: var(--space-2);
+    min-width: 0;
+    flex: 1;
   }
 
   .header-icon {
-    font-size: var(--text-xl);
-  }
-
-  .header-info {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
+    font-size: var(--text-base);
+    line-height: 1;
+    flex-shrink: 0;
   }
 
   .header-title {
-    font-size: var(--text-lg);
-    font-weight: var(--font-semibold);
+    font-size: var(--text-sm);
+    font-weight: var(--font-medium);
     color: var(--color-text);
     margin: 0;
     line-height: var(--leading-tight);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
 
-  .header-meta {
-    font-size: var(--text-xs);
+  .header-meta-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 2px 8px;
+    background: var(--color-bg-surface0);
+    border-radius: var(--radius-md);
+    flex-shrink: 0;
+  }
+
+  .header-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: var(--font-medium);
     color: var(--color-text-subtext0);
     font-family: var(--font-mono);
+  }
+
+  .header-meta-item svg {
+    opacity: 0.7;
+  }
+
+  .meta-separator {
+    color: var(--color-border);
+    font-size: 10px;
+    user-select: none;
   }
 
   .header-actions {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
+    gap: var(--space-1);
+    flex-shrink: 0;
+    margin-left: var(--space-2);
   }
 
-  .header-btn {
+  .header-btn-icon {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--text-sm);
-    font-weight: var(--font-medium);
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
     color: var(--color-text-subtext1);
-    background-color: var(--color-bg-surface0);
-    border: 1px solid var(--color-border);
+    background-color: transparent;
+    border: 1px solid transparent;
     border-radius: var(--radius-md);
     cursor: pointer;
     transition: all var(--transition-fast);
   }
 
-  .header-btn:hover {
-    background-color: var(--color-bg-surface1);
+  .header-btn-icon:hover:not(:disabled) {
+    background-color: var(--color-bg-surface0);
     color: var(--color-text);
-    border-color: var(--color-border-hover);
+    border-color: var(--color-border);
+  }
+
+  .header-btn-icon:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .header-btn-icon.danger:hover:not(:disabled) {
+    color: var(--color-error);
+    border-color: var(--color-error);
+    background-color: rgba(243, 139, 168, 0.1);
   }
 
   /* Workspaces Container */

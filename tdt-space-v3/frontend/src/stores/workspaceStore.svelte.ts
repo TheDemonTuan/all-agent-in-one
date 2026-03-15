@@ -560,6 +560,8 @@ class WorkspaceStore {
         if (result.pid) {
           this.setTerminalProcessId(terminalId, result.pid);
         }
+        // Clear any stale backlog from previous session
+        backendAPI.clearTerminalBacklog(terminalId).catch(() => {});
       }
     } catch (err) {
       console.error('[WorkspaceStore] Failed to restart terminal:', err);
@@ -678,6 +680,39 @@ class WorkspaceStore {
 
   setSidebarVisible(visible: boolean): void {
     this.sidebarVisible = visible;
+  }
+
+  /**
+   * Kill all terminals in the current workspace
+   */
+  async killAllTerminals(): Promise<void> {
+    if (!this.currentWorkspace?.terminals?.length) return;
+
+    console.log(`[WorkspaceStore] Killing all ${this.currentWorkspace.terminals.length} terminals in current workspace`);
+
+    await Promise.all(
+      this.currentWorkspace.terminals.map(t =>
+        backendAPI.terminalKill(t.id).catch(err =>
+          console.error(`[WorkspaceStore] Failed to kill terminal ${t.id}:`, err)
+        )
+      )
+    );
+
+    // Update terminal statuses to stopped
+    const updatedTerminals = this.currentWorkspace.terminals.map(term => ({
+      ...term,
+      status: 'stopped' as const,
+    }));
+
+    const updatedWorkspace = {
+      ...this.currentWorkspace,
+      terminals: updatedTerminals,
+    };
+
+    this.currentWorkspace = updatedWorkspace;
+    this.workspaces = this.workspaces.map(ws =>
+      ws.id === updatedWorkspace.id ? updatedWorkspace : ws
+    );
   }
 }
 
